@@ -9,34 +9,30 @@ using backend.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. CONFIGURATION DU CORS (Uniformisé pour votre frontend React)
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("ReactCorsPolicy", policy =>
-    {
-        policy.WithOrigins("http://localhost:5173")
-              .AllowAnyHeader()
-              .AllowAnyMethod();
-    });
-});
+// 1. CONFIGURATION DU CORS (Un seul bloc regroupant toutes les origines admises, sans slash final)
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("ReactCorsPolicy", policy =>
     {
         policy.WithOrigins(
                 "http://localhost:5173",
-                "https://nokia-4cvnn0l0g-aldrago-egos-projects.vercel.app/"  // remplace par ta vraie URL Vercel
+                "https://nokia-p.vercel.app",
+                "https://nokia-4cvnn0l0g-aldrago-egos-projects.vercel.app"
               )
               .AllowAnyHeader()
-              .AllowAnyMethod();
+              .AllowAnyMethod()
+              .AllowCredentials();
     });
 });
+
 var port = Environment.GetEnvironmentVariable("PORT") ?? "5000";
 builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+// ... Reste de vos services et configuration
 
 // 2. CONFIGURATION DE LA BASE DE DONNÉES (PostgreSQL)
 builder.Services.AddDbContext<AppDbContext>(options =>
