@@ -3,7 +3,7 @@ import { apiFetch } from '../apiFetch';
 
 
 
-const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:5000/api';
+const API_BASE = import.meta.env.VITE_API_URL ?? 'https://nokia-p-1.onrender.com/api';
 const DOMAINS = ['RAN', 'Microwave', 'Energy', 'Core', 'Consumables'];
 
 interface Category {
