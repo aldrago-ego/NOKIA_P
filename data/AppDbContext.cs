@@ -26,6 +26,8 @@ namespace Backend.Data
         public DbSet<RmaRequest> RmaRequests { get; set; }
         public DbSet<RmaRequestItem> RmaRequestItems { get; set; }
         public DbSet<User> Users { get; set; }
+        public DbSet<StockLoan> StockLoans { get; set; }
+public DbSet<StockLoanItem> StockLoanItems { get; set; }
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
