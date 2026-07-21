@@ -1,12 +1,13 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
-import ShipmentDetailPanel from './ShipmentDetailPanel';
-import { useProject } from './project';
-import SmrDetailPanel from './SmrDetailPanel';
-import { useNavigate } from 'react-router';
-import RmaDetailPanel from './RmaDetailPanel';
-import { apiFetch } from '../apiFetch';
+import React, { useEffect, useState, useCallback, useRef } from "react";
+import ShipmentDetailPanel from "./ShipmentDetailPanel";
+import { useProject } from "./project";
+import SmrDetailPanel from "./SmrDetailPanel";
+import { useNavigate } from "react-router";
+import RmaDetailPanel from "./RmaDetailPanel";
+import { apiFetch } from "../apiFetch";
 
-const API_BASE = import.meta.env.VITE_API_URL ?? 'https://nokia-p-1.onrender.com/api';
+const API_BASE =
+  import.meta.env.VITE_API_URL ?? "https://nokia-p-1.onrender.com/api";
 
 // ---------- Types (miroir des DTO C#) ----------
 interface Project {
@@ -50,28 +51,53 @@ interface ActivityLog {
   timestamp: string;
 }
 
-type CardKey = 'shipment' | 'inventory' | 'smrs' | 'faulty';
+type CardKey = "shipment" | "inventory" | "smrs" | "faulty";
 
-const CARD_CONFIG: { key: CardKey; label: string; badge: string; badgeBg: string }[] = [
-  { key: 'shipment', label: 'HW Shipment', badge: 'S', badgeBg: 'bg-[#124191]' },
-  { key: 'inventory', label: 'Real-Time Inventory', badge: 'R', badgeBg: 'bg-emerald-600' },
-  { key: 'smrs', label: 'SMRs', badge: 'S', badgeBg: 'bg-amber-500' },
-  { key: 'faulty', label: 'Faulty HW RMA', badge: 'A', badgeBg: 'bg-red-600' },
+const CARD_CONFIG: {
+  key: CardKey;
+  label: string;
+  badge: string;
+  badgeBg: string;
+}[] = [
+  {
+    key: "shipment",
+    label: "HW Shipment",
+    badge: "S",
+    badgeBg: "bg-[#124191]",
+  },
+  {
+    key: "inventory",
+    label: "Real-Time Inventory",
+    badge: "R",
+    badgeBg: "bg-emerald-600",
+  },
+  { key: "smrs", label: "SMRs", badge: "S", badgeBg: "bg-amber-500" },
+  { key: "faulty", label: "Faulty HW RMA", badge: "A", badgeBg: "bg-red-600" },
 ];
 
 const ACTIVITY_ICON: Record<string, { icon: string; color: string }> = {
-  SHIPMENTS_IMPORTED: { icon: '⬇', color: 'text-[#124191]' },
-  DELIVERY_CONFIRMED: { icon: '✓', color: 'text-emerald-600' },
-  DEFECT_MARKED: { icon: '⚠', color: 'text-red-600' },
-  SMR_CREATED: { icon: '▤', color: 'text-amber-600' },
+  SHIPMENTS_IMPORTED: { icon: "⬇", color: "text-[#124191]" },
+  DELIVERY_CONFIRMED: { icon: "✓", color: "text-emerald-600" },
+  DEFECT_MARKED: { icon: "⚠", color: "text-red-600" },
+  SMR_CREATED: { icon: "▤", color: "text-amber-600" },
 };
 
 export default function Dashboard() {
   // ---------- Projets ----------
-  const { projects, selectedProjectId, setSelectedProjectId, addProject, selectedProject } = useProject();
+  const {
+    projects,
+    selectedProjectId,
+    setSelectedProjectId,
+    addProject,
+    selectedProject,
+  } = useProject();
   const [projectDropdownOpen, setProjectDropdownOpen] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+   const [warehouseId, setWarehouseId] = useState<number | null>(null);
+const [stockLines, setStockLines] = useState<any[] | null>(null);
+const [stockSearch, setStockSearch] = useState('');
+const [expandedInventoryDomains, setExpandedInventoryDomains] = useState<Set<string>>(new Set());
 
   // ---------- Stats (4 cards) ----------
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -81,10 +107,14 @@ export default function Dashboard() {
   const [openCard, setOpenCard] = useState<CardKey | null>(null);
 
   // ---------- Real-Time Inventory detail ----------
-  const [domainSummary, setDomainSummary] = useState<DomainSummary[] | null>(null);
+  const [domainSummary, setDomainSummary] = useState<DomainSummary[] | null>(
+    null,
+  );
   const [domainLoading, setDomainLoading] = useState(false);
   const [expandedDomain, setExpandedDomain] = useState<string | null>(null);
-  const [groupCache, setGroupCache] = useState<Record<string, MaterialGroupSummary[]>>({});
+  const [groupCache, setGroupCache] = useState<
+    Record<string, MaterialGroupSummary[]>
+  >({});
   const [groupLoading, setGroupLoading] = useState<string | null>(null);
 
   // ---------- Activités récentes ----------
@@ -97,24 +127,62 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [smrPreview, setSmrPreview] = useState<any[] | null>(null);
 
-const loadSmrPreview = useCallback(() => {
-  if (selectedProjectId == null || smrPreview) return;
-  apiFetch(`${API_BASE}/SmrRequests?projectId=${selectedProjectId}`)
-    .then((res) => res.json())
-    .then((data) => setSmrPreview(data.slice(0, 4)))
-    .catch(() => setSmrPreview([]));
-}, [selectedProjectId, smrPreview]);
+  const loadSmrPreview = useCallback(() => {
+    if (selectedProjectId == null || smrPreview) return;
+    apiFetch(`${API_BASE}/SmrRequests?projectId=${selectedProjectId}`)
+      .then((res) => res.json())
+      .then((data) => setSmrPreview(data.slice(0, 4)))
+      .catch(() => setSmrPreview([]));
+  }, [selectedProjectId, smrPreview]);
 
   // Ferme le dropdown si on clique en dehors
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node)
+      ) {
         setProjectDropdownOpen(false);
       }
     }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  useEffect(() => {
+  apiFetch(`${API_BASE}/Warehouses`).then((r) => r.json()).then((data) => setWarehouseId(data[0]?.id ?? null));
+}, []);
+
+const loadStockLines = useCallback(() => {
+  if (stockLines || warehouseId == null) return;
+  apiFetch(`${API_BASE}/PhysicalAssets/by-warehouse/${warehouseId}`)
+    .then((r) => r.json())
+    .then(setStockLines)
+    .catch(() => setStockLines([]));
+}, [stockLines, warehouseId]);
+
+function toggleInventoryDomain(domain: string) {
+  setExpandedInventoryDomains((prev) => {
+    const next = new Set(prev);
+    next.has(domain) ? next.delete(domain) : next.add(domain);
+    return next;
+  });
+}
+
+const groupedStock = React.useMemo(() => {
+  const byDomain = new Map<string, Map<string, any[]>>();
+  if (!stockLines) return byDomain;
+  const filtered = stockSearch.trim()
+    ? stockLines.filter((l) => l.partNumber.toLowerCase().includes(stockSearch.toLowerCase()) || l.name.toLowerCase().includes(stockSearch.toLowerCase()))
+    : stockLines;
+  filtered.forEach((l) => {
+    if (!byDomain.has(l.domain)) byDomain.set(l.domain, new Map());
+    const gm = byDomain.get(l.domain)!;
+    if (!gm.has(l.materialGroup)) gm.set(l.materialGroup, []);
+    gm.get(l.materialGroup)!.push(l);
+  });
+  return byDomain;
+}, [stockLines, stockSearch]);
 
   // =========================================================
   // Chargement des stats + activités, à chaque changement de projet
@@ -129,23 +197,26 @@ const loadSmrPreview = useCallback(() => {
       signal: controller.signal,
     })
       .then((res) => {
-        if (!res.ok) throw new Error('stats apiFetch failed');
+        if (!res.ok) throw new Error("stats apiFetch failed");
         return res.json();
       })
       .then((data: DashboardStats) => setStats(data))
       .catch((err) => {
-        if (err.name !== 'AbortError') setStatsError(true);
+        if (err.name !== "AbortError") setStatsError(true);
       })
       .finally(() => setStatsLoading(false));
 
     setActivitiesError(false);
-    apiFetch(`${API_BASE}/ActivityLogs?projectId=${selectedProjectId}&take=10`, {
-      signal: controller.signal,
-    })
+    apiFetch(
+      `${API_BASE}/ActivityLogs?projectId=${selectedProjectId}&take=10`,
+      {
+        signal: controller.signal,
+      },
+    )
       .then((res) => res.json())
       .then((data: ActivityLog[]) => setActivities(data))
       .catch((err) => {
-        if (err.name !== 'AbortError') setActivitiesError(true);
+        if (err.name !== "AbortError") setActivitiesError(true);
       });
 
     // Réinitialise les panneaux ouverts en changeant de projet — les données affichées
@@ -179,22 +250,22 @@ const loadSmrPreview = useCallback(() => {
       apiFetch(`${API_BASE}/PhysicalAssets/summary/${domain}`)
         .then((res) => res.json())
         .then((data: MaterialGroupSummary[]) =>
-          setGroupCache((prev) => ({ ...prev, [domain]: data }))
+          setGroupCache((prev) => ({ ...prev, [domain]: data })),
         )
         .catch(() => setGroupCache((prev) => ({ ...prev, [domain]: [] })))
         .finally(() => setGroupLoading(null));
     },
-    [groupCache]
+    [groupCache],
   );
 
- // Dans toggleCard, retire le cas spécial 'smrs' qu'on avait ajouté :
-function toggleCard(key: CardKey) {
-  const next = openCard === key ? null : key;
-  setOpenCard(next);
-  if (next === 'inventory') loadDomainSummary();
-  if (next !== 'inventory') setExpandedDomain(null);
-  if (next === 'smrs') loadSmrPreview();
-}
+  // Dans toggleCard, retire le cas spécial 'smrs' qu'on avait ajouté :
+  function toggleCard(key: CardKey) {
+    const next = openCard === key ? null : key;
+    setOpenCard(next);
+    if (next === 'inventory') loadStockLines();
+    if (next !== "inventory") setExpandedDomain(null);
+    if (next === "smrs") loadSmrPreview();
+  }
   function toggleDomain(domain: string) {
     const next = expandedDomain === domain ? null : domain;
     setExpandedDomain(next);
@@ -202,10 +273,9 @@ function toggleCard(key: CardKey) {
   }
 
   function handleProjectCreated(project: Project) {
-  addProject(project);
-  setShowCreateModal(false);
-}
-
+    addProject(project);
+    setShowCreateModal(false);
+  }
 
   return (
     <div className="p-6 bg-[#F4F6FA] min-h-full">
@@ -213,7 +283,9 @@ function toggleCard(key: CardKey) {
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
           <h1 className="text-xl font-bold text-[#0F172A] mb-1">Dashboard</h1>
-          <p className="text-sm text-slate-500">Vue d'ensemble du stock — Entrepôt Lomé</p>
+          <p className="text-sm text-slate-500">
+            Vue d'ensemble du stock — Entrepôt Lomé
+          </p>
         </div>
 
         <div className="flex items-center gap-2" ref={dropdownRef}>
@@ -234,12 +306,12 @@ function toggleCard(key: CardKey) {
                     {selectedProject.name}
                   </>
                 ) : (
-                  'Aucun projet'
+                  "Aucun projet"
                 )}
               </span>
               <svg
                 className={`w-3.5 h-3.5 text-slate-400 transition-transform ${
-                  projectDropdownOpen ? 'rotate-180' : ''
+                  projectDropdownOpen ? "rotate-180" : ""
                 }`}
                 viewBox="0 0 24 24"
                 fill="none"
@@ -264,14 +336,16 @@ function toggleCard(key: CardKey) {
                       setProjectDropdownOpen(false);
                     }}
                     className={`w-full text-left px-4 py-2.5 text-sm flex items-center justify-between hover:bg-[#EAF1FC] transition-colors ${
-                      p.id === selectedProjectId ? 'bg-[#EAF1FC]' : ''
+                      p.id === selectedProjectId ? "bg-[#EAF1FC]" : ""
                     }`}
                   >
                     <span className="flex items-center gap-2">
                       <span className="font-mono text-xs bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">
                         {p.code}
                       </span>
-                      <span className="font-medium text-[#0F172A]">{p.name}</span>
+                      <span className="font-medium text-[#0F172A]">
+                        {p.name}
+                      </span>
                     </span>
                     {!p.hasFullTraceability && (
                       <span
@@ -308,15 +382,19 @@ function toggleCard(key: CardKey) {
       {/* Bandeau info projet archivé */}
       {selectedProject && !selectedProject.hasFullTraceability && (
         <div className="mb-5 flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg px-4 py-2.5">
-          <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none">
+          <svg
+            className="w-4 h-4 flex-shrink-0"
+            viewBox="0 0 24 24"
+            fill="none"
+          >
             <path
               d="M12 9v4m0 4h.01M10.3 3.9L2.7 17a2 2 0 001.7 3h15.2a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"
               stroke="currentColor"
               strokeWidth="1.8"
             />
           </svg>
-          Projet antérieur au suivi numérique — les SMR et le matériel défectueux ne sont pas
-          disponibles pour cette période.
+          Projet antérieur au suivi numérique — les SMR et le matériel
+          défectueux ne sont pas disponibles pour cette période.
         </div>
       )}
 
@@ -332,11 +410,11 @@ function toggleCard(key: CardKey) {
               disabled={unavailable}
               onClick={() => !unavailable && toggleCard(cfg.key)}
               className={`text-left bg-white rounded-xl border p-5 transition-all duration-150
-                ${unavailable ? 'opacity-60 cursor-not-allowed' : ''}
+                ${unavailable ? "opacity-60 cursor-not-allowed" : ""}
                 ${
                   openCard === cfg.key
-                    ? 'border-[#F2790B] shadow-[0_0_0_1px_#F2790B] -translate-y-0.5'
-                    : 'border-slate-200 hover:border-[#F2790B] hover:-translate-y-0.5 hover:shadow-md'
+                    ? "border-[#F2790B] shadow-[0_0_0_1px_#F2790B] -translate-y-0.5"
+                    : "border-slate-200 hover:border-[#F2790B] hover:-translate-y-0.5 hover:shadow-md"
                 }`}
             >
               <div className="flex items-center gap-3">
@@ -345,21 +423,38 @@ function toggleCard(key: CardKey) {
                 >
                   {cfg.badge}
                 </span>
-                <span className="text-sm font-semibold text-slate-700">{cfg.label}</span>
+                <span className="text-sm font-semibold text-slate-700">
+                  {cfg.label}
+                </span>
               </div>
 
               <div className="mt-3">
                 {statsLoading || !stats ? (
                   statsError ? (
-                    <span className="text-sm text-red-500">Erreur de chargement</span>
+                    <span className="text-sm text-red-500">
+                      Erreur de chargement
+                    </span>
                   ) : (
                     <span className="inline-block h-7 w-16 bg-slate-200 rounded animate-pulse" />
                   )
                 ) : unavailable ? (
-                  <span className="text-sm text-slate-400 italic">Non disponible</span>
+                  <span className="text-sm text-slate-400 italic">
+                    Non disponible
+                  </span>
+                ) : cfg.key === "inventory" ? (
+                  <>
+                    <span className="text-lg font-bold text-[#0F172A]">
+                      {value!.toLocaleString("fr-FR")}
+                    </span>
+                    <div className="text-[11px] text-slate-400 mt-1">
+                      {activities && activities[0]
+                        ? `Dernière transaction : ${new Date(activities[0].timestamp).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`
+                        : "Aucune transaction récente"}
+                    </div>
+                  </>
                 ) : (
                   <span className="text-2xl font-bold text-[#0F172A]">
-                    {value!.toLocaleString('fr-FR')}
+                    {value!.toLocaleString("fr-FR")}
                   </span>
                 )}
               </div>
@@ -370,10 +465,84 @@ function toggleCard(key: CardKey) {
 
       {/* ---------- DETAIL PANEL — Real-Time Inventory par Domain ---------- */}
       {openCard === 'inventory' && (
-        <div className="bg-white rounded-xl border border-slate-200 mb-6 overflow-hidden text-black">
+  <div className="bg-white rounded-xl border border-slate-200 mb-6 overflow-hidden text-black">
+    <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 bg-slate-50">
+      <h3 className="text-sm font-semibold text-[#0F172A]">
+        Real-Time Inventory — matériel en stock (indépendant du projet)
+      </h3>
+      <button onClick={() => setOpenCard(null)} className="text-slate-400 hover:text-slate-600 text-sm">✕</button>
+    </div>
+
+    <div className="p-4">
+      <input
+        value={stockSearch}
+        onChange={(e) => setStockSearch(e.target.value)}
+        placeholder="Filtrer par code ou description…"
+        className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-[#124191]/30"
+      />
+
+      {!stockLines ? (
+        <SkeletonRows count={5} />
+      ) : stockLines.length === 0 ? (
+        <p className="text-sm text-slate-400 text-center py-6">Aucune donnée de stock disponible.</p>
+      ) : (
+        Array.from(groupedStock.entries()).map(([domain, groupMap]) => {
+          const domainRefs = Array.from(groupMap.values()).flat().length;
+          const domainQty = Array.from(groupMap.values()).flat().reduce((a: number, l: any) => a + l.totalQuantity, 0);
+          const isOpen = expandedInventoryDomains.has(domain) || stockSearch.trim() !== '';
+
+          return (
+            <div key={domain} className="border border-slate-100 rounded-lg mb-2 overflow-hidden">
+              <button
+                onClick={() => toggleInventoryDomain(domain)}
+                className="w-full flex items-center justify-between px-4 py-3 hover:bg-[#EAF1FC] transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <svg className={`w-4 h-4 text-slate-400 transition-transform ${isOpen ? 'rotate-90' : ''}`} viewBox="0 0 24 24" fill="none">
+                    <path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  <span className="font-semibold text-sm text-[#0F172A]">{domain}</span>
+                  <span className="text-xs text-slate-400">{domainRefs} réf. · {domainQty.toLocaleString('fr-FR')} unités</span>
+                </div>
+              </button>
+
+              {isOpen && (
+                <div className="border-t border-slate-100">
+                  {Array.from(groupMap.entries()).map(([materialGroup, lines]: [string, any[]]) => (
+                    <div key={materialGroup}>
+                      <div className="px-4 py-1.5 bg-slate-50/50 text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
+                        {materialGroup}
+                      </div>
+                      <table className="w-full text-sm">
+                        <tbody>
+                          {lines.map((l: any) => (
+                            <tr key={l.hardwareProductId} className="border-b border-slate-50">
+                              <td className="px-4 py-2 font-mono text-xs text-[#124191]">{l.partNumber}</td>
+                              <td className="px-4 py-2">{l.name}</td>
+                              <td className="px-4 py-2 text-right font-mono">{l.totalQuantity}</td>
+                              <td className="px-4 py-2 text-right font-mono text-red-600">{l.defectiveQuantity || '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })
+      )}
+    </div>
+  </div>
+)}
+
+      {/* ---------- DETAIL PANEL — HW Shipment / SMRs / Faulty HW RMA (à câbler) ---------- */}
+      {openCard && openCard !== "inventory" && (
+        <div className="bg-white rounded-xl border border-slate-200 mb-6 overflow-hidden">
           <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 bg-slate-50">
             <h3 className="text-sm font-semibold text-[#0F172A]">
-              Real-Time Inventory — par domaine (stock global, indépendant du projet)
+              {CARD_CONFIG.find((c) => c.key === openCard)?.label}
             </h3>
             <button
               onClick={() => setOpenCard(null)}
@@ -382,152 +551,69 @@ function toggleCard(key: CardKey) {
               ✕
             </button>
           </div>
-
           <div className="p-4">
-            {domainLoading || !domainSummary ? (
-              <SkeletonRows count={5} />
-            ) : domainSummary.length === 0 ? (
-              <p className="text-sm text-slate-400 text-center py-6">
-                Aucune donnée de stock disponible.
-              </p>
-            ) : (
-              <div className="space-y-2">
-                {domainSummary.map((d) => (
-                  <div key={d.domain} className="border border-slate-100 rounded-lg">
-                    <button
-                      onClick={() => toggleDomain(d.domain)}
-                      className="w-full flex items-center justify-between px-4 py-3 hover:bg-[#EAF1FC] rounded-lg transition-colors"
-                    >
-                      <div className="flex items-center gap-3">
-                        <svg
-                          className={`w-4 h-4 text-slate-400 transition-transform ${
-                            expandedDomain === d.domain ? 'rotate-90' : ''
+            {openCard === "shipment" && selectedProjectId != null && (
+              <ShipmentDetailPanel projectId={selectedProjectId} />
+            )}
+            {openCard === "smrs" && (
+              <div>
+                {!smrPreview ? (
+                  <SkeletonRows count={3} compact />
+                ) : smrPreview.length === 0 ? (
+                  <p className="text-sm text-slate-400 text-center py-4">
+                    Aucune SMR pour ce projet.
+                  </p>
+                ) : (
+                  <div className="space-y-2 mb-3">
+                    {smrPreview.map((s: any) => (
+                      <div
+                        key={s.id}
+                        className="flex items-center justify-between px-3 py-2 border border-slate-100 rounded-lg text-sm"
+                      >
+                        <span className="font-mono text-[#124191] font-semibold">
+                          {s.smrNumber}
+                        </span>
+                        <span className="text-slate-500">{s.client?.name}</span>
+                        <span
+                          className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                            s.status === "Approved"
+                              ? "bg-emerald-50 text-emerald-700"
+                              : s.status === "Rejected"
+                                ? "bg-red-50 text-red-700"
+                                : "bg-amber-50 text-amber-700"
                           }`}
-                          viewBox="0 0 24 24"
-                          fill="none"
                         >
-                          <path
-                            d="M9 6l6 6-6 6"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                        <span className="font-semibold text-sm text-[#0F172A]">{d.domain}</span>
-                        <span className="text-xs text-slate-400">
-                          {d.distinctReferences} références
+                          {s.status === "Approved"
+                            ? "Approuvée"
+                            : s.status === "Rejected"
+                              ? "Rejetée"
+                              : "En attente"}
                         </span>
                       </div>
-                      <div className="flex items-center gap-4 text-sm">
-                        <span className="font-mono font-semibold">
-                          {d.totalQuantity.toLocaleString('fr-FR')}
-                        </span>
-                        {d.defectiveQuantity > 0 && (
-                          <span className="text-xs font-semibold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">
-                            {d.defectiveQuantity} défectueux
-                          </span>
-                        )}
-                      </div>
-                    </button>
-
-                    {expandedDomain === d.domain && (
-                      <div className="border-t border-slate-100 px-4 py-2 bg-slate-50/60">
-                        {groupLoading === d.domain || !groupCache[d.domain] ? (
-                          <SkeletonRows count={3} compact />
-                        ) : (
-                          <table className="w-full text-sm">
-                            <thead>
-                              <tr className="text-xs text-slate-400 uppercase tracking-wide">
-                                <th className="text-left font-medium py-2">Catégorie</th>
-                                <th className="text-right font-medium py-2">Réf.</th>
-                                <th className="text-right font-medium py-2">Quantité</th>
-                                <th className="text-right font-medium py-2">Défectueux</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {groupCache[d.domain].map((g) => (
-                                <tr key={g.materialGroup} className="border-t border-slate-100">
-                                  <td className="py-2 text-slate-700">{g.materialGroup}</td>
-                                  <td className="py-2 text-right text-slate-400">
-                                    {g.distinctReferences}
-                                  </td>
-                                  <td className="py-2 text-right font-mono">
-                                    {g.totalQuantity.toLocaleString('fr-FR')}
-                                  </td>
-                                  <td className="py-2 text-right font-mono text-red-600">
-                                    {g.defectiveQuantity || '—'}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        )}
-                      </div>
-                    )}
+                    ))}
                   </div>
-                ))}
+                )}
+                <a
+                  href="/smr"
+                  className="text-xs font-semibold text-[#124191] hover:underline"
+                >
+                  Voir toutes les SMR →
+                </a>
               </div>
+            )}
+            {openCard === "faulty" && selectedProjectId != null && (
+              <RmaDetailPanel projectId={selectedProjectId} limit={4} />
             )}
           </div>
         </div>
       )}
 
-      {/* ---------- DETAIL PANEL — HW Shipment / SMRs / Faulty HW RMA (à câbler) ---------- */}
-{openCard && openCard !== 'inventory' && (
-  <div className="bg-white rounded-xl border border-slate-200 mb-6 overflow-hidden">
-    <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 bg-slate-50">
-      <h3 className="text-sm font-semibold text-[#0F172A]">
-        {CARD_CONFIG.find((c) => c.key === openCard)?.label}
-      </h3>
-      <button onClick={() => setOpenCard(null)} className="text-slate-400 hover:text-slate-600 text-sm">✕</button>
-    </div>
-    <div className="p-4">
-      {openCard === 'shipment' && selectedProjectId != null && (
-        <ShipmentDetailPanel projectId={selectedProjectId} />
-      )}
-      // APRÈS
-{openCard === 'smrs' && (
-  <div>
-    {!smrPreview ? (
-      <SkeletonRows count={3} compact />
-    ) : smrPreview.length === 0 ? (
-      <p className="text-sm text-slate-400 text-center py-4">Aucune SMR pour ce projet.</p>
-    ) : (
-      <div className="space-y-2 mb-3">
-        {smrPreview.map((s: any) => (
-          <div key={s.id} className="flex items-center justify-between px-3 py-2 border border-slate-100 rounded-lg text-sm">
-            <span className="font-mono text-[#124191] font-semibold">{s.smrNumber}</span>
-            <span className="text-slate-500">{s.client?.name}</span>
-            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-              s.status === 'Approved' ? 'bg-emerald-50 text-emerald-700'
-              : s.status === 'Rejected' ? 'bg-red-50 text-red-700'
-              : 'bg-amber-50 text-amber-700'
-            }`}>
-              {s.status === 'Approved' ? 'Approuvée' : s.status === 'Rejected' ? 'Rejetée' : 'En attente'}
-            </span>
-          </div>
-        ))}
-      </div>
-    )}
-    <a href="/smr" className="text-xs font-semibold text-[#124191] hover:underline">
-      Voir toutes les SMR →
-    </a>
-  </div>
-)}
-      
-
-{openCard === 'faulty' && selectedProjectId != null && (
-  <RmaDetailPanel projectId={selectedProjectId} limit={4} />
-)}
-    </div>
-  </div>
-)}
-
       {/* ---------- TABLEAU : ACTIVITÉS RÉCENTES ---------- */}
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div className="px-5 py-3 border-b border-slate-200 bg-slate-50">
-          <h3 className="text-sm font-semibold text-[#0F172A]">Activités récentes</h3>
+          <h3 className="text-sm font-semibold text-[#0F172A]">
+            Activités récentes
+          </h3>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -550,29 +636,47 @@ function toggleCard(key: CardKey) {
                 ))
               ) : activitiesError ? (
                 <tr>
-                  <td colSpan={4} className="px-5 py-6 text-center text-red-400">
+                  <td
+                    colSpan={4}
+                    className="px-5 py-6 text-center text-red-400"
+                  >
                     Impossible de charger les activités récentes.
                   </td>
                 </tr>
               ) : activities.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-5 py-6 text-center text-slate-400">
+                  <td
+                    colSpan={4}
+                    className="px-5 py-6 text-center text-slate-400"
+                  >
                     Aucune activité enregistrée pour ce projet.
                   </td>
                 </tr>
               ) : (
                 activities.map((a) => {
-                  const cfg = ACTIVITY_ICON[a.type] ?? { icon: '•', color: 'text-slate-400' };
+                  const cfg = ACTIVITY_ICON[a.type] ?? {
+                    icon: "•",
+                    color: "text-slate-400",
+                  };
                   return (
-                    <tr key={a.id} className="border-b border-slate-50 hover:bg-[#EAF1FC] transition-colors">
+                    <tr
+                      key={a.id}
+                      className="border-b border-slate-50 hover:bg-[#EAF1FC] transition-colors"
+                    >
                       <td className="px-5 py-3 text-slate-400 font-mono text-xs whitespace-nowrap">
-                        {new Date(a.timestamp).toLocaleString('fr-FR')}
+                        {new Date(a.timestamp).toLocaleString("fr-FR")}
                       </td>
                       <td className="px-5 py-3">
-                        <span className={`font-semibold ${cfg.color}`}>{cfg.icon} {a.type.replace(/_/g, ' ')}</span>
+                        <span className={`font-semibold ${cfg.color}`}>
+                          {cfg.icon} {a.type.replace(/_/g, " ")}
+                        </span>
                       </td>
-                      <td className="px-5 py-3 text-slate-700">{a.description}</td>
-                      <td className="px-5 py-3 text-slate-500">{a.performedBy}</td>
+                      <td className="px-5 py-3 text-slate-700">
+                        {a.description}
+                      </td>
+                      <td className="px-5 py-3 text-slate-500">
+                        {a.performedBy}
+                      </td>
                     </tr>
                   );
                 })
@@ -602,25 +706,26 @@ function CreateProjectModal({
   onClose: () => void;
   onCreated: (p: Project) => void;
 }) {
-  const [name, setName] = useState('');
-  const [code, setCode] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const [name, setName] = useState("");
+  const [code, setCode] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+ 
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim() || !code.trim() || !startDate) {
-      setError('Nom, code et date de début sont requis.');
+      setError("Nom, code et date de début sont requis.");
       return;
     }
     setSubmitting(true);
     setError(null);
     try {
       const res = await apiFetch(`${API_BASE}/Projects`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name,
           code,
@@ -628,7 +733,7 @@ function CreateProjectModal({
           endDate: endDate || null,
         }),
       });
-      if (!res.ok) throw new Error('Échec de la création');
+      if (!res.ok) throw new Error("Échec de la création");
       const created: Project = await res.json();
       onCreated(created);
     } catch {
@@ -646,7 +751,10 @@ function CreateProjectModal({
       <div className="bg-white rounded-xl w-full max-w-md p-6 shadow-2xl">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-base font-bold text-[#0F172A]">Nouveau projet</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+          <button
+            onClick={onClose}
+            className="text-slate-400 hover:text-slate-600"
+          >
             ✕
           </button>
         </div>
@@ -671,7 +779,9 @@ function CreateProjectModal({
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-500 mb-1.5">Code</label>
+            <label className="block text-xs font-semibold text-slate-500 mb-1.5">
+              Code
+            </label>
             <input
               value={code}
               onChange={(e) => setCode(e.target.value)}
@@ -694,7 +804,8 @@ function CreateProjectModal({
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-500 mb-1.5">
-                Date de fin <span className="text-slate-400 font-normal">(optionnel)</span>
+                Date de fin{" "}
+                <span className="text-slate-400 font-normal">(optionnel)</span>
               </label>
               <input
                 type="date"
@@ -718,7 +829,7 @@ function CreateProjectModal({
               disabled={submitting}
               className="px-4 py-2 text-sm font-semibold text-white bg-[#124191] rounded-lg hover:bg-[#0d3373] transition-colors disabled:opacity-60"
             >
-              {submitting ? 'Création…' : 'Créer le projet'}
+              {submitting ? "Création…" : "Créer le projet"}
             </button>
           </div>
         </form>
@@ -730,22 +841,31 @@ function CreateProjectModal({
 // ---------- Helpers ----------
 function statsValue(stats: DashboardStats, key: CardKey): number | null {
   switch (key) {
-    case 'shipment':
+    case "shipment":
       return stats.hwShipment;
-    case 'inventory':
+    case "inventory":
       return stats.realTimeInventory;
-    case 'smrs':
+    case "smrs":
       return stats.smrs;
-    case 'faulty':
+    case "faulty":
       return stats.faultyHwRma;
   }
 }
 
-function SkeletonRows({ count, compact = false }: { count: number; compact?: boolean }) {
+function SkeletonRows({
+  count,
+  compact = false,
+}: {
+  count: number;
+  compact?: boolean;
+}) {
   return (
     <div className="space-y-2">
       {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className={`bg-slate-100 rounded animate-pulse ${compact ? 'h-6' : 'h-11'}`} />
+        <div
+          key={i}
+          className={`bg-slate-100 rounded animate-pulse ${compact ? "h-6" : "h-11"}`}
+        />
       ))}
     </div>
   );
