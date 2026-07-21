@@ -49,6 +49,15 @@ const NAV_ITEMS = [
     </svg>
   ),
 },
+{
+  to: '/loans',
+  label: 'Prêts & Emprunts',
+  icon: (
+    <svg viewBox="0 0 24 24" fill="none" className="w-[18px] h-[18px]">
+      <path d="M8 7h12m0 0l-4-4m4 4l-4 4M16 17H4m0 0l4 4m-4-4l4-4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+    </svg>
+  ),
+},
 ];
 
 export default function AppLayout() {

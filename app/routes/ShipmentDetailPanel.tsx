@@ -431,7 +431,7 @@ function ConfirmDeliveryForm({
         <input
           value={supervisorName}
           onChange={(e) => setSupervisorName(e.target.value)}
-          placeholder="ex : Al Tchagnao"
+          placeholder="supervisor"
           className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#124191]/30 focus:border-[#124191]"
         />
       </div>

@@ -4,6 +4,7 @@ import { useProject } from "./project";
 import { ShipmentModal } from "./ShipmentDetailPanel";
 import CategoryManager from "./CategoryManager";
 import{apiFetch}from "../apiFetch";
+import StockWithdrawalForm from "./StockWithdrawalForm";
 const API_BASE = import.meta.env.VITE_API_URL ?? 'https://nokia-p-1.onrender.com/api';
 
 interface Warehouse {
@@ -52,6 +53,7 @@ export default function WarehousePage() {
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<number | null>(
     null,
   );
+  const [showWithdrawalForm, setShowWithdrawalForm] = useState(false);
 
   const [lines, setLines] = useState<WarehouseAssetLine[] | null>(null);
   const [error, setError] = useState(false);
@@ -209,22 +211,17 @@ export default function WarehousePage() {
           </svg>
           Importer shipments (Excel)
         </button>
-        <button
-          onClick={() => lines && exportWarehouseToExcel(lines)}
-          disabled={!lines || lines.length === 0}
-          className="flex items-center gap-1.5 bg-white border border-slate-200 text-sm font-semibold text-[#0F172A] rounded-lg px-4 py-2.5 hover:border-[#124191] transition-colors disabled:opacity-50"
-        >
-          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
-            <path
-              d="M12 21V9m0 12l-4-4m4 4l4-4M4 5h16"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          Exporter
-        </button>
+       
+<button
+  onClick={() => setShowWithdrawalForm(true)}
+  disabled={!lines || lines.length === 0}
+  className="flex items-center gap-1.5 bg-white border border-slate-200 text-sm font-semibold text-[#0F172A] rounded-lg px-4 py-2.5 hover:border-[#124191] transition-colors disabled:opacity-50"
+>
+  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
+    <path d="M12 21V9m0 12l-4-4m4 4l4-4M4 5h16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+  Donner à un client (sans SMR)
+</button>
         <button
           onClick={() => setShowCategoryManager(true)}
           className="flex items-center gap-1.5 bg-white border border-slate-200 text-sm font-semibold text-[#0F172A] rounded-lg px-4 py-2.5 hover:border-[#124191] transition-colors"
@@ -434,6 +431,16 @@ export default function WarehousePage() {
       setShowCategoryManager(false);
       loadLines(); // recharge le stock pour refléter les nouvelles catégories immédiatement
     }}
+    
+  />
+)}
+{showWithdrawalForm && lines && selectedWarehouseId != null && selectedProjectId != null && (
+  <StockWithdrawalForm
+    warehouseId={selectedWarehouseId}
+    projectId={selectedProjectId}
+    stockLines={lines}
+    onClose={() => setShowWithdrawalForm(false)}
+    onDone={() => { setShowWithdrawalForm(false); loadLines(); showToast('Matériel donné au client — stock mis à jour'); }}
   />
 )}
     </div>

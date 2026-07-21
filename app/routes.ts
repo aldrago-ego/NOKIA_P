@@ -7,5 +7,6 @@ export default [
     route("warehouse", "routes/warehouse.tsx"),
     route("smr", "routes/smr.tsx"),
     route("rma", "routes/Rma.tsx"),
+    route("loans", "routes/loans.tsx"),
   ]),
 ] satisfies RouteConfig;
