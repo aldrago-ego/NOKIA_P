@@ -1,10 +1,16 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router";
 import { useAuth } from "./authContext";
+import LoadingButton from "../Component/LoadingButton";
+
+
+
+
 export default function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
 
@@ -14,20 +20,26 @@ export default function LoginPage() {
       setError(true);
       return;
     }
+    setSubmitting(true);
     try {
       setError(false);
       await login(username.trim(), password);
       navigate("/");
     } catch {
       setError(true);
+    } finally {
+      setSubmitting(false);
     }
   }
   async function handleViewerAccess() {
+    setSubmitting(true);
     try {
       await login("viewer", "ChangeMoi123!");
       navigate("/");
     } catch {
       setError(true);
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -76,19 +88,23 @@ export default function LoginPage() {
             />
           </div>
 
-          <button
+          <LoadingButton
+            loading={submitting}
+            loadingText="Connexion en cours…"
             type="submit"
             className="w-full py-2.5 text-sm font-semibold text-white bg-[#124191] rounded-lg hover:bg-[#0d3373] transition-colors"
           >
             Se connecter
-          </button>
-          <button
+          </LoadingButton>
+          <LoadingButton
+            loading={false}
+            loadingText="Chargement…"
             type="button"
             onClick={handleViewerAccess}
             className="w-full py-2.5 text-sm font-semibold text-[#124191] bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors mt-2"
           >
-            Continuer en mode Viewer
-          </button>
+            Continuer en mode Visiteur
+          </LoadingButton>
         </form>
 
         <p className="text-[11px] text-slate-400 text-center mt-4">
