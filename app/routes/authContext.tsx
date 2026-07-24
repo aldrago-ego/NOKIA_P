@@ -4,12 +4,13 @@ import { apiFetch } from '../apiFetch';
 const API_BASE = import.meta.env.VITE_API_URL ?? 'https://nokia-p-1.onrender.com/api';
 const STORAGE_KEY = 'nexa_auth';
 
-export type Role = 'Admin' | 'Viewer';
+export type Role = 'Admin' | 'Supervisor' | 'Viewer';
 
 interface AuthContextValue {
   role: Role | null;
   userName: string | null;
-  isAdmin: boolean;
+  isAdmin: boolean;        // Admin STRICT — réservé aux actions les plus sensibles
+  isElevated: boolean;     // Admin OU Supervisor — actions courantes de gestion
   login: (username: string, password: string) => Promise<void>;
   logout: () => void;
 }
@@ -56,8 +57,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ role, userName, isAdmin: role === 'Admin', login, logout }}>
-      {children}
+<AuthContext.Provider value={{
+  role,
+  userName,
+  isAdmin: role === 'Admin',
+  isElevated: role === 'Admin' || role === 'Supervisor',
+  login,
+  logout
+}}>      {children}
     </AuthContext.Provider>
   );
 }
