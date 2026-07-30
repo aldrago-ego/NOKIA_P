@@ -6,6 +6,7 @@ using backend.Models;
 using Backend.DTO.Inventory;
 using Backend.Models;
 using Microsoft.AspNetCore.Authorization;
+using backend.DTO;
 
 namespace Backend.Controllers
 {
@@ -122,7 +123,7 @@ namespace Backend.Controllers
         // PATCH: api/PhysicalAssets/5/defect
         // Marque un asset (unité ou lot) comme défectueux, avec quantité
         [HttpPatch("{id}/defect")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin, Supervisor")]
         public async Task<IActionResult> UpdateDefect(int id, [FromBody] UpdateDefectDto dto)
         {
             var asset = await _context.PhysicalAssets.FindAsync(id);
@@ -140,7 +141,7 @@ namespace Backend.Controllers
         // POST: api/PhysicalAssets/import
         // Réception des lignes lues côté front (SheetJS) depuis le bouton "Importer Excel"
         [HttpPost("import")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin, Supervisor")]
         public async Task<ActionResult<ImportResultDto>> ImportRows([FromBody] ImportRequestDto request)
         {
             var warehouse = await _context.Warehouses.FindAsync(request.WarehouseId);
@@ -250,6 +251,94 @@ namespace Backend.Controllers
                 Name = a.HardwareProduct.Name,
                 a.DefectiveQuantity
             }));
+        }
+        [HttpPost("adjust-stock")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> AdjustStock([FromBody] StockAdjustmentDto dto)
+        {
+            var results = new List<object>();
+
+            foreach (var item in dto.Items)
+            {
+                HardwareProduct? product = item.HardwareProductId.HasValue
+                    ? await _context.HardwareProducts.FindAsync(item.HardwareProductId.Value)
+                    : await _context.HardwareProducts.FirstOrDefaultAsync(p => p.PartNumber == item.PartNumber);
+
+                if (product == null)
+                {
+                    if (string.IsNullOrEmpty(item.PartNumber) || string.IsNullOrEmpty(item.Domain) || item.IsSerialized == null)
+                        return BadRequest($"Référence '{item.PartNumber}' inconnue : PartNumber, Domain et IsSerialized requis pour créer une nouvelle fiche.");
+
+                    if (!Enum.TryParse<MaterialDomain>(item.Domain, true, out var domain))
+                        return BadRequest($"Domain invalide pour '{item.PartNumber}': {item.Domain}");
+
+                    product = new HardwareProduct
+                    {
+                        PartNumber = item.PartNumber,
+                        Name = item.Description ?? "Équipement générique",
+                        Domain = domain,
+                        MaterialGroup = string.IsNullOrEmpty(item.MaterialGroup) ? "À catégoriser" : item.MaterialGroup,
+                        IsSerialized = item.IsSerialized.Value
+                    };
+                    _context.HardwareProducts.Add(product);
+                    await _context.SaveChangesAsync();
+                }
+
+                var assets = await _context.PhysicalAssets
+                    .Where(a => a.HardwareProductId == product.Id && a.WarehouseId == dto.WarehouseId && a.Status == "STOCK")
+                    .ToListAsync();
+
+                int currentTotal = assets.Sum(a => a.Quantity);
+                int delta = item.NewQuantity - currentTotal;
+
+                if (delta > 0)
+                {
+                    _context.PhysicalAssets.Add(new PhysicalAsset
+                    {
+                        SerialNumber = $"CORRECTION-{DateTime.UtcNow:yyyyMMddHHmmss}-{product.PartNumber}",
+                        HardwareProductId = product.Id,
+                        HardwareProduct = product,
+                        Quantity = delta,
+                        Status = "STOCK",
+                        IsManuallyVerified = true,
+                        VerificationStatus = "CONFORME",
+                        WarehouseId = dto.WarehouseId,
+                        UploadedAt = DateTime.UtcNow
+                    });
+                }
+                else if (delta < 0)
+                {
+                    int toRemove = -delta;
+                    var ordered = assets.OrderByDescending(a => a.Quantity - a.DefectiveQuantity).ToList();
+                    foreach (var asset in ordered)
+                    {
+                        if (toRemove <= 0) break;
+                        int reducible = asset.Quantity - asset.DefectiveQuantity;
+                        if (reducible <= 0) continue;
+                        int take = Math.Min(toRemove, reducible);
+                        asset.Quantity -= take;
+                        toRemove -= take;
+                        if (asset.Quantity <= 0) { asset.Status = "REMOVED"; asset.WarehouseId = null; }
+                    }
+                    if (toRemove > 0)
+                        return BadRequest($"Impossible de réduire {product.PartNumber} de {-delta} — seulement {(-delta - toRemove)} disponible en bon état.");
+                }
+
+                results.Add(new { product.PartNumber, currentTotal, item.NewQuantity, delta });
+            }
+
+            await _context.SaveChangesAsync();
+
+            _context.ActivityLogs.Add(new ActivityLog
+            {
+                ProjectId = dto.ProjectId,
+                Type = "STOCK_CORRECTED",
+                Description = $"Correction manuelle de stock ({dto.Items.Count} référence(s))" + (string.IsNullOrEmpty(dto.Reason) ? "" : $" — {dto.Reason}"),
+                PerformedBy = "Admin"
+            });
+            await _context.SaveChangesAsync();
+
+            return Ok(new { adjustments = results });
         }
 
 

@@ -95,7 +95,7 @@ namespace Backend.Controllers
             });
         }
         [HttpDelete("{id}")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin, Supervisor")]
         public async Task<IActionResult> CancelShipment(int id)
         {
             var shipment = await _context.DeliveryNotes.FindAsync(id);
@@ -124,7 +124,7 @@ namespace Backend.Controllers
         // Étape 1 : importe la liste des shipments annoncés (Excel), aucun PhysicalAsset créé
 
         [HttpPost("import")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin , Supervisor ")]
         public async Task<IActionResult> ImportShipments([FromBody] ShipmentImportRequestDto request)
         {
             var project = await _context.Projects.FindAsync(request.ProjectId);

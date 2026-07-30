@@ -91,21 +91,21 @@ using (var scope = app.Services.CreateScope())
         if (!context.Users.Any(u => u.Username == "admin"))
         {
             var admin = new User { Username = "admin", Role = "Admin", DisplayName = "ADMIN" };
-            admin.PasswordHash = hasher.HashPassword(admin, "ChangeMoi123!");
+            admin.PasswordHash = hasher.HashPassword(admin, "Admin123!");
             context.Users.Add(admin);
         }
 
         if (!context.Users.Any(u => u.Username == "viewer"))
         {
             var viewer = new User { Username = "viewer", Role = "Viewer", DisplayName = "VIEWER" };
-            viewer.PasswordHash = hasher.HashPassword(viewer, "ChangeMoi123!");
+            viewer.PasswordHash = hasher.HashPassword(viewer, "LOL222222!");
             context.Users.Add(viewer);
         }
 
         if (!context.Users.Any(u => u.Username == "supervisor"))
         {
-            var supervisor = new User { Username = "supervisor", Role = "Admin", DisplayName = "SUPERVISOR" };
-            supervisor.PasswordHash = hasher.HashPassword(supervisor, "ChangeMoi123!");
+            var supervisor = new User { Username = "supervisor", Role = "Supervisor", DisplayName = "SUPERVISOR" };
+            supervisor.PasswordHash = hasher.HashPassword(supervisor, "Supervisor123!");
             context.Users.Add(supervisor);
         }
 

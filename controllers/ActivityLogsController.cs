@@ -15,7 +15,7 @@ namespace Backend.Controllers
 
         // GET: api/ActivityLogs?projectId=3&take=10
         [HttpGet]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin, Supervisor")]
         public async Task<IActionResult> GetRecent([FromQuery] int projectId, [FromQuery] int take = 10)
         {
             var logs = await _context.Set<ActivityLog>()

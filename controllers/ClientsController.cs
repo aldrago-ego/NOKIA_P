@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Backend.Data;
 using Backend.Models;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Backend.Controllers
 {
@@ -22,12 +23,29 @@ namespace Backend.Controllers
             return await _context.Clients.ToListAsync();
         }
 
-        [HttpPost]
-        public async Task<ActionResult<Client>> PostClient(Client client)
+        public class CreateClientDto
         {
+            public string Name { get; set; } = string.Empty;
+            public string CompanyName { get; set; } = string.Empty;
+            public string Email { get; set; } = string.Empty;
+        }
+
+        [HttpPost]
+        [Authorize(Roles = "Admin,Supervisor")]
+        public async Task<IActionResult> Create([FromBody] CreateClientDto dto)
+        {
+            if (string.IsNullOrWhiteSpace(dto.Name)) return BadRequest("Nom requis.");
+
+            var client = new Client
+            {
+                Name = dto.Name,
+                CompanyName = dto.CompanyName,
+                Email = dto.Email
+            };
+
             _context.Clients.Add(client);
             await _context.SaveChangesAsync();
-            return CreatedAtAction(nameof(GetClients), new { id = client.Id }, client);
+            return Ok(client);
         }
     }
 }

@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using Backend.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace backend.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260724220211_Addmaj")]
+    partial class Addmaj
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -318,40 +321,6 @@ namespace backend.Migrations
                     b.ToTable("DeliveryNotes");
                 });
 
-            modelBuilder.Entity("backend.Models.DeploymentRecord", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("DeployedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("HardwareProductId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("Quantity")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("SiteId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("SmrRequestId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("HardwareProductId");
-
-                    b.HasIndex("SiteId");
-
-                    b.HasIndex("SmrRequestId");
-
-                    b.ToTable("DeploymentRecords");
-                });
-
             modelBuilder.Entity("backend.Models.ExpectedDeliveryLine", b =>
                 {
                     b.Property<int>("Id")
@@ -443,37 +412,6 @@ namespace backend.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Projects");
-                });
-
-            modelBuilder.Entity("backend.Models.RefreshToken", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime>("ExpiresAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("Revoked")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Token")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int>("UserId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("RefreshTokens");
                 });
 
             modelBuilder.Entity("backend.Models.RmaRequest", b =>
@@ -804,33 +742,6 @@ namespace backend.Migrations
                     b.Navigation("Project");
                 });
 
-            modelBuilder.Entity("backend.Models.DeploymentRecord", b =>
-                {
-                    b.HasOne("backend.Models.HardwareProduct", "HardwareProduct")
-                        .WithMany()
-                        .HasForeignKey("HardwareProductId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("Backend.Models.Site", "Site")
-                        .WithMany()
-                        .HasForeignKey("SiteId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("backend.Models.SMRRequest", "SmrRequest")
-                        .WithMany()
-                        .HasForeignKey("SmrRequestId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("HardwareProduct");
-
-                    b.Navigation("Site");
-
-                    b.Navigation("SmrRequest");
-                });
-
             modelBuilder.Entity("backend.Models.ExpectedDeliveryLine", b =>
                 {
                     b.HasOne("backend.Models.DeliveryNote", "DeliveryNote")
@@ -840,17 +751,6 @@ namespace backend.Migrations
                         .IsRequired();
 
                     b.Navigation("DeliveryNote");
-                });
-
-            modelBuilder.Entity("backend.Models.RefreshToken", b =>
-                {
-                    b.HasOne("backend.Models.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("backend.Models.RmaRequest", b =>

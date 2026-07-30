@@ -45,7 +45,7 @@ namespace Backend.Controllers
         }
 
         [HttpPost]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin, Supervisor")]
         public async Task<IActionResult> Create([FromBody] CreateLoanDto dto)
         {
             if (!Enum.TryParse<LoanDirection>(dto.Direction, true, out var direction))
@@ -111,7 +111,7 @@ namespace Backend.Controllers
         }
 
         [HttpPatch("{id}/return")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin, Supervisor")]
         public async Task<IActionResult> Return(int id, [FromBody] ReturnLoanDto dto)
         {
             var loan = await _context.StockLoans.Include(l => l.Items).FirstOrDefaultAsync(l => l.Id == id);

@@ -2,9 +2,11 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Backend.Data;
 using Backend.Models;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Backend.Controllers
 {
+    
     [ApiController]
     [Route("api/[controller]")]
     public class SitesController : ControllerBase
@@ -26,52 +28,81 @@ namespace Backend.Controllers
                 .ToListAsync();
         }
 
-        // POST: api/Sites
-        [HttpPost]
-        public async Task<ActionResult<Site>> CreateSite([FromBody] Site newSite)
+        
+        [HttpPut("{id}")]
+        public async Task<IActionResult> UpdateSite(int id, [FromBody] Site updatedSite)
         {
-            if (newSite == null) return BadRequest("Données invalides.");
+            if (id != updatedSite.Id) return BadRequest("L'ID ne correspond pas.");
 
-            _context.Sites.Add(newSite);
+            _context.Entry(updatedSite).State = EntityState.Modified;
+
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                if (!_context.Sites.Any(e => e.Id == id)) return NotFound("Site introuvable.");
+                throw;
+            }
+
+            return NoContent();
+        }
+
+        // DELETE: api/Sites/{id} (Suppression)
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeleteSite(int id)
+        {
+            var site = await _context.Sites.FindAsync(id);
+            if (site == null) return NotFound("Site introuvable.");
+
+            _context.Sites.Remove(site);
             await _context.SaveChangesAsync();
 
-            // Recharger la relation client pour le JSON de retour
-            await _context.Entry(newSite).Reference(s => s.Client).LoadAsync();
-
-            return CreatedAtAction(nameof(GetSites), new { id = newSite.Id }, newSite);
+            return NoContent();
         }
-        // PUT: api/Sites/{id} (Modification)
-[HttpPut("{id}")]
-public async Task<IActionResult> UpdateSite(int id, [FromBody] Site updatedSite)
+        public class CreateSiteDto
 {
-    if (id != updatedSite.Id) return BadRequest("L'ID ne correspond pas.");
-
-    _context.Entry(updatedSite).State = EntityState.Modified;
-
-    try
-    {
-        await _context.SaveChangesAsync();
-    }
-    catch (DbUpdateConcurrencyException)
-    {
-        if (!_context.Sites.Any(e => e.Id == id)) return NotFound("Site introuvable.");
-        throw;
-    }
-
-    return NoContent();
+    public string SiteName { get; set; } = string.Empty;
+    public string? Latitude { get; set; }
+    public string? Longitude { get; set; }
+    public string? Address { get; set; }
+    public string? City { get; set; }
+    public string? ZipCode { get; set; }
+    public string? State { get; set; }
+    public string? Country { get; set; }
+    public int ClientId { get; set; }
 }
 
-// DELETE: api/Sites/{id} (Suppression)
-[HttpDelete("{id}")]
-public async Task<IActionResult> DeleteSite(int id)
+[HttpPost]
+[Authorize(Roles = "Admin,Supervisor")]
+public async Task<IActionResult> Create([FromBody] CreateSiteDto dto)
 {
-    var site = await _context.Sites.FindAsync(id);
-    if (site == null) return NotFound("Site introuvable.");
+    if (string.IsNullOrWhiteSpace(dto.SiteName)) return BadRequest("Nom du site requis.");
 
-    _context.Sites.Remove(site);
+    var client = await _context.Clients.FindAsync(dto.ClientId);
+    if (client == null) return BadRequest("Client invalide.");
+
+    var site = new Site
+    {
+        SiteName = dto.SiteName,
+        Latitude = dto.Latitude ?? "",
+        Longitude = dto.Longitude ?? "",
+        Address = dto.Address ?? "",
+        City = dto.City ?? "",
+        ZipCode = dto.ZipCode ?? "",
+        State = dto.State ?? "",
+        Country = dto.Country ?? "",
+        ClientId = dto.ClientId
+    };
+
+    _context.Sites.Add(site);
     await _context.SaveChangesAsync();
 
-    return NoContent();
+    return Ok(site);
 }
     }
+
+    
+    
 }

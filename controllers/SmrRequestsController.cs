@@ -46,19 +46,21 @@ namespace backend.controllers
             public int RequestedQuantity { get; set; }
         }
 
+        // APRÈS — un seul site par SMR
+        // APRÈS — un seul site par SMR
         public class CreateSmrDto
         {
             public string SMRNumber { get; set; } = string.Empty;
             public int ProjectId { get; set; }
             public int WarehouseId { get; set; }
             public int ClientId { get; set; }
-            public List<int> SiteIds { get; set; } = new();
+            public int SiteId { get; set; }
             public List<CreateSmrItemDto> Items { get; set; } = new();
         }
 
         // POST: api/SmrRequests — création manuelle (le superviseur choisit le matériel à demander)
         [HttpPost]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin, Supervisor")]
         public async Task<IActionResult> CreateSMRRequest([FromBody] CreateSmrDto dto)
         {
             if (dto.Items == null || dto.Items.Count == 0)
@@ -70,7 +72,7 @@ namespace backend.controllers
                 ProjectId = dto.ProjectId,
                 WarehouseId = dto.WarehouseId,
                 ClientId = dto.ClientId,
-                SiteIds = dto.SiteIds,
+                SiteIds = new List<int> { dto.SiteId },
                 Status = "Pending",
                 CreatedDate = DateTime.UtcNow,
                 Items = dto.Items.Select(i => new SMRRequestItem
@@ -174,7 +176,7 @@ namespace backend.controllers
 
         // PATCH: api/SmrRequests/5/approve
         [HttpPatch("{id}/approve")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin, Supervisor")]
         public async Task<IActionResult> Approve(int id, [FromBody] ApproveSmrDto dto)
         {
             var request = await _context.Set<SMRRequest>()
@@ -203,6 +205,17 @@ namespace backend.controllers
 
                 await DeductStockForItem(item, request.WarehouseId, toDeduct);
                 item.AllocatedQuantity = toDeduct;
+
+                if (toDeduct > 0 && request.SiteIds.Count > 0)
+                {
+                    _context.Set<DeploymentRecord>().Add(new DeploymentRecord
+                    {
+                        SmrRequestId = request.Id,
+                        SiteId = request.SiteIds[0],
+                        HardwareProductId = item.HardwareProductId,
+                        Quantity = toDeduct
+                    });
+                }
             }
 
             request.Status = "Approved";
@@ -228,7 +241,7 @@ namespace backend.controllers
 
         // PATCH: api/SmrRequests/5/reject
         [HttpPatch("{id}/reject")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin, Supervisor")]
         public async Task<IActionResult> Reject(int id, [FromBody] RejectSmrDto dto)
         {
             var request = await _context.Set<SMRRequest>().FindAsync(id);
@@ -249,5 +262,31 @@ namespace backend.controllers
 
             return Ok(new { message = $"SMR {request.SMRNumber} rejetée." });
         }
+        // GET: api/SmrRequests/deployments?siteId=5
+[HttpGet("deployments")]
+public async Task<IActionResult> GetDeployments([FromQuery] int? siteId, [FromQuery] int? projectId)
+{
+    var query = _context.Set<DeploymentRecord>()
+        .Include(d => d.HardwareProduct)
+        .Include(d => d.Site)
+        .Include(d => d.SmrRequest)
+        .AsQueryable();
+
+    if (siteId.HasValue) query = query.Where(d => d.SiteId == siteId.Value);
+    if (projectId.HasValue) query = query.Where(d => d.SmrRequest!.ProjectId == projectId.Value);
+
+    var records = await query.OrderByDescending(d => d.DeployedAt).ToListAsync();
+
+    return Ok(records.Select(d => new
+    {
+        d.Id,
+        d.Quantity,
+        d.DeployedAt,
+        SiteName = d.Site?.SiteName,
+        PartNumber = d.HardwareProduct.PartNumber,
+        ProductName = d.HardwareProduct.Name,
+        SmrNumber = d.SmrRequest != null ? d.SmrRequest.SMRNumber : null,
+    }));
+}
     }
 }

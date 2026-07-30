@@ -124,7 +124,7 @@ namespace Backend.Controllers
 
         // PATCH: api/RmaRequests/5/ship — le matériel quitte physiquement l'entrepôt
         [HttpPatch("{id}/ship")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin, Supervisor")]
         public async Task<IActionResult> Ship(int id, [FromBody] ShipRmaDto dto)
         {
             var rma = await _context.RmaRequests

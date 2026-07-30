@@ -27,7 +27,9 @@ namespace Backend.Data
         public DbSet<RmaRequestItem> RmaRequestItems { get; set; }
         public DbSet<User> Users { get; set; }
         public DbSet<StockLoan> StockLoans { get; set; }
-public DbSet<StockLoanItem> StockLoanItems { get; set; }
+        public DbSet<StockLoanItem> StockLoanItems { get; set; }
+        public DbSet<DeploymentRecord> DeploymentRecords { get; set; }
+        public DbSet<RefreshToken> RefreshTokens { get; set; } // Ajout de la table RefreshTokens   
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);

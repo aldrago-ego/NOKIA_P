@@ -43,7 +43,7 @@ namespace Backend.Controllers
         }
 
         [HttpPost]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin, Supervisor")]
         public async Task<IActionResult> Create([FromBody] CreateCategoryDto dto)
         {
             if (string.IsNullOrWhiteSpace(dto.Name)) return BadRequest("Nom de catégorie requis.");

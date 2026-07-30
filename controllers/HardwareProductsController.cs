@@ -41,7 +41,7 @@ namespace Backend.Controllers
         // Comme Domain/MaterialGroup vivent sur HardwareProduct (pas sur chaque PhysicalAsset),
         // tous les exemplaires en stock de ce code héritent immédiatement de la catégorie.
         [HttpPatch("bulk-category")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin, Supervisor")]
         public async Task<IActionResult> BulkUpdateCategory([FromBody] BulkCategoryDto dto)
         {
             if (!Enum.TryParse<MaterialDomain>(dto.Domain, true, out var domain))
@@ -60,5 +60,50 @@ namespace Backend.Controllers
 
             return Ok(new { updated = products.Count });
         }
+        // GET: api/HardwareProducts/5
+[HttpGet("{id}")]
+public async Task<IActionResult> GetById(int id)
+{
+    var product = await _context.HardwareProducts.FindAsync(id);
+    if (product == null) return NotFound();
+
+    return Ok(new
+    {
+        product.Id,
+        product.PartNumber,
+        product.Name,
+        Domain = product.Domain.ToString(),
+        product.MaterialGroup,
+        product.IsSerialized
+    });
+}
+
+public class UpdateProductDto
+{
+    public string Name { get; set; } = string.Empty;
+    public string Domain { get; set; } = string.Empty;
+    public string MaterialGroup { get; set; } = string.Empty;
+    public bool IsSerialized { get; set; }
+}
+
+// PATCH: api/HardwareProducts/5
+[HttpPatch("{id}")]
+[Authorize(Roles = "Admin,Supervisor")]
+public async Task<IActionResult> Update(int id, [FromBody] UpdateProductDto dto)
+{
+    var product = await _context.HardwareProducts.FindAsync(id);
+    if (product == null) return NotFound();
+
+    if (!Enum.TryParse<MaterialDomain>(dto.Domain, true, out var domain))
+        return BadRequest("Domain invalide.");
+
+    product.Name = dto.Name;
+    product.Domain = domain;
+    product.MaterialGroup = dto.MaterialGroup;
+    product.IsSerialized = dto.IsSerialized;
+
+    await _context.SaveChangesAsync();
+    return Ok(new { message = "Fiche produit mise à jour." });
+}
     }
 }
