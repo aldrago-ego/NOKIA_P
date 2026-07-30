@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { apiFetch } from '../apiFetch';
 
-const API_BASE = import.meta.env.VITE_API_URL ?? 'https://nokia-p-1.onrender.com/api';
+const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:5000/api';
 
 interface StockLine { hardwareProductId: number; partNumber: string; name: string; totalQuantity: number; defectiveQuantity: number; }
 interface DraftLine { hardwareProductId: number; partNumber: string; name: string; available: number; quantity: number; }

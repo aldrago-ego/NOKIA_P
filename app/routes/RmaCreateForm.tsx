@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {apiFetch} from '../apiFetch';
 
-const API_BASE = import.meta.env.VITE_API_URL ?? 'https://nokia-p-1.onrender.com/api';
+const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:5000/api';
 
 interface DefectiveAsset { id: number; serialNumber: string; partNumber: string; name: string; defectiveQuantity: number; }
 interface DraftLine { physicalAssetId: number; partNumber: string; name: string; max: number; quantity: number; }

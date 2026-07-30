@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { apiFetch } from '../apiFetch';
+import LoadingButton from '../Component/LoadingButton';
 
-const API_BASE = import.meta.env.VITE_API_URL ?? 'https://nokia-p-1.onrender.com/api';
+const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:5000/api';
 
 interface ShipmentListItem {
   id: number;
@@ -379,7 +380,7 @@ function ConfirmDeliveryForm({
     setSubmitting(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE}/Deliveries/approve-direct`, {
+      const res = await apiFetch(`${API_BASE}/Deliveries/approve-direct`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -554,13 +555,14 @@ function ConfirmDeliveryForm({
       </button>
 
       <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-        <button
+        <LoadingButton
           type="submit"
+          loading={submitting}
+          loadingText="Connexion en cours…"
           disabled={submitting}
-          className="px-5 py-2.5 text-sm font-semibold text-white bg-[#124191] rounded-lg hover:bg-[#0d3373] transition-colors disabled:opacity-60"
-        >
-          {submitting ? 'Confirmation…' : 'Confirmer la réception et injecter en stock'}
-        </button>
+          className="px-5 py-2.5 text-sm font-semibold text-white bg-[#124191] rounded-lg hover:bg-[#0d3373] transition-colors disabled:opacity-60" children={undefined}        >
+              
+            </LoadingButton>
       </div>
     </form>
   );
@@ -581,7 +583,7 @@ function CancelShipmentButton({
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE}/DeliveryNotes/${shipment.id}`, { method: 'DELETE' });
+      const res = await apiFetch(`${API_BASE}/DeliveryNotes/${shipment.id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error(await res.text());
       onCancelled();
     } catch (err: any) {

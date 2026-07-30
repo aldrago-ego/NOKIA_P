@@ -58,6 +58,25 @@ const NAV_ITEMS = [
     </svg>
   ),
 },
+{
+  to: '/traceability',
+  label: 'Traçabilité',
+  icon: (
+    <svg viewBox="0 0 24 24" fill="none" className="w-[18px] h-[18px]">
+      <path d="M9 20l-5-5 5-5M4 15h16" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+},
+{
+  to: '/clients',
+  label: 'Clients',
+  icon: (
+    <svg viewBox="0 0 24 24" fill="none" className="w-[18px] h-[18px]">
+      <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z" stroke="currentColor" strokeWidth="1.6" />
+      <circle cx="12" cy="12" r="2.6" stroke="currentColor" strokeWidth="1.6" />
+    </svg>
+  ),
+},
 ];
 
 export default function AppLayout() {
@@ -107,15 +126,9 @@ export default function AppLayout() {
                       {item.label}
                     </>
                   )}
+                  
                 </NavLink>
               ))}
-
-              <div className="pt-5 pb-1 px-4 text-[10px] font-bold uppercase text-blue-300/50 tracking-widest">
-                Modules à venir
-              </div>
-              <button disabled className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm text-blue-300/40 cursor-not-allowed">
-                Clients
-              </button>
             </nav>
           </div>
 

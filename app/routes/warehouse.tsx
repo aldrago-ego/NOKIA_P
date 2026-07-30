@@ -7,9 +7,10 @@ import { apiFetch } from "../apiFetch";
 import StockWithdrawalForm from "./StockWithdrawalForm";
 import { useAuth } from "./authContext";
 import StockCorrectionForm from "./StockCorrectionForm";
+import ProductEditForm from "./ProductEditForm";
+import LoadingButton from "../Component/LoadingButton";
 
-const API_BASE =
-  import.meta.env.VITE_API_URL ?? "https://nokia-p-1.onrender.com/api";
+const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:5000/api";
 
 interface Warehouse {
   id: number;
@@ -53,13 +54,13 @@ interface PendingShipment {
 export default function WarehousePage() {
   const { selectedProjectId, selectedProject } = useProject();
   const [showCategoryManager, setShowCategoryManager] = useState(false);
-  const { isAdmin } = useAuth();
+  const { isAdmin, isElevated } = useAuth();
   const [showStockCorrection, setShowStockCorrection] = useState(false);
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<number | null>(
     null,
   );
   const [showWithdrawalForm, setShowWithdrawalForm] = useState(false);
-
+  const [editingProductId, setEditingProductId] = useState<number | null>(null);
   const [lines, setLines] = useState<WarehouseAssetLine[] | null>(null);
   const [error, setError] = useState(false);
   const [search, setSearch] = useState("");
@@ -89,7 +90,7 @@ export default function WarehousePage() {
     if (selectedWarehouseId == null) return;
     setLines(null);
     setError(false);
-    fetch(`${API_BASE}/PhysicalAssets/by-warehouse/${selectedWarehouseId}`)
+    apiFetch(`${API_BASE}/PhysicalAssets/by-warehouse/${selectedWarehouseId}`)
       .then((res) => res.json())
       .then(setLines)
       .catch(() => setError(true));
@@ -102,7 +103,7 @@ export default function WarehousePage() {
   // ---------- Charge les shipments Pending du projet actif ----------
   const loadPendingShipments = useCallback(() => {
     if (selectedProjectId == null) return;
-    fetch(`${API_BASE}/DeliveryNotes?projectId=${selectedProjectId}`)
+    apiFetch(`${API_BASE}/DeliveryNotes?projectId=${selectedProjectId}`)
       .then((res) => res.json())
       .then((data: any[]) => {
         setPendingShipments(
@@ -168,11 +169,14 @@ export default function WarehousePage() {
   async function updateDefect(assetId: number, value: number, maxQty: number) {
     if (value < 0 || value > maxQty) return;
     try {
-      const res = await fetch(`${API_BASE}/PhysicalAssets/${assetId}/defect`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ defectiveQuantity: value }),
-      });
+      const res = await apiFetch(
+        `${API_BASE}/PhysicalAssets/${assetId}/defect`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ defectiveQuantity: value }),
+        },
+      );
       if (!res.ok) throw new Error();
       loadLines();
       showToast("Statut mis à jour");
@@ -400,8 +404,17 @@ export default function WarehousePage() {
                             {groupLines.map((line) => (
                               <MaterialRows
                                 key={line.hardwareProductId}
+
                                 line={line}
                                 onDefectSave={updateDefect}
+                                onEdit={
+                                  isElevated
+                                    ? () =>
+                                        setEditingProductId(
+                                          line.hardwareProductId,
+                                        )
+                                    : undefined
+                                }
                               />
                             ))}
                           </tbody>
@@ -484,6 +497,17 @@ export default function WarehousePage() {
             }}
           />
         )}
+      {editingProductId != null && (
+        <ProductEditForm
+          hardwareProductId={editingProductId}
+          onClose={() => setEditingProductId(null)}
+          onSaved={() => {
+            setEditingProductId(null);
+            loadLines();
+            showToast("Fiche produit mise à jour");
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -841,7 +865,7 @@ function ImportShipmentsModal({
           return;
         }
 
-        const res = await fetch(`${API_BASE}/DeliveryNotes/import`, {
+        const res = await apiFetch(`${API_BASE}/DeliveryNotes/import`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -976,13 +1000,15 @@ function ImportShipmentsModal({
               >
                 Annuler
               </button>
-              <button
+              <LoadingButton
                 onClick={handleImport}
                 disabled={busy}
+                loading={busy}
+                loadingText="Import…"
                 className="px-4 py-2 text-sm font-semibold text-white bg-[#124191] rounded-lg hover:bg-[#0d3373] transition-colors disabled:opacity-60"
               >
                 {busy ? "Import…" : "Importer"}
-              </button>
+              </LoadingButton>
             </div>
           </>
         )}
@@ -990,34 +1016,15 @@ function ImportShipmentsModal({
     </div>
   );
 }
-function exportWarehouseToExcel(lines: WarehouseAssetLine[]) {
-  const rows = lines.flatMap((line) =>
-    line.units.map((u) => ({
-      Domaine: line.domain,
-      "Groupe matériel": line.materialGroup,
-      "Code (Part Number)": line.partNumber,
-      Description: line.name,
-      "N° série / Lot": u.serialNumber,
-      Quantité: u.quantity,
-      "Quantité défectueuse": u.defectiveQuantity,
-      Statut: u.defectiveQuantity > 0 ? "Défectueux" : "Bon état",
-    })),
-  );
 
-  const ws = XLSX.utils.json_to_sheet(rows);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Warehouse");
-  const date = new Date().toISOString().slice(0, 10);
-  XLSX.writeFile(wb, `warehouse-export-${date}.xlsx`);
-}
-// Regroupe toutes les unités d'un même code matériel en une seule ligne agrégée.
-// Se déplie au clic pour éditer le statut défectueux de chaque numéro de série/lot individuellement.
 function MaterialRows({
   line,
   onDefectSave,
+  onEdit,
 }: {
   line: WarehouseAssetLine;
   onDefectSave: (assetId: number, value: number, maxQty: number) => void;
+  onEdit?: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const hasMultipleUnits = line.units.length > 1;
@@ -1044,6 +1051,14 @@ function MaterialRows({
         </td>
         <td className="px-5 py-2">
           <StatusPill defective={u.defectiveQuantity > 0} />
+          {onEdit && (
+            <button
+              onClick={onEdit}
+              className="ml-2 text-[10px] text-[#124191] hover:underline"
+            >
+              Modifier
+            </button>
+          )}
         </td>
       </tr>
     );

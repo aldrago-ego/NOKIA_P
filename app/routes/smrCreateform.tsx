@@ -1,13 +1,15 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useProject } from "./project";
 import {apiFetch} from "../apiFetch";
-const API_BASE = import.meta.env.VITE_API_URL ?? 'https://nokia-p-1.onrender.com/api';
+const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:5000/api';
+import SiteCreateForm from "./sitesCreateForm";
+import LoadingButton from "../Component/LoadingButton";
 
 interface Client {
   id: number;
   name: string;
 }
-// APRÈS
+
 interface Site {
   id: number;
   siteName: string;
@@ -41,6 +43,7 @@ export default function SmrCreateForm({
   onCreated: () => void;
 }) {
   const { selectedProjectId } = useProject();
+  const [showSiteForm, setShowSiteForm] = useState(false);
 
   const [warehouse, setWarehouse] = useState<Warehouse | null>(null);
   const [clients, setClients] = useState<Client[] | null>(null);
@@ -49,9 +52,7 @@ export default function SmrCreateForm({
 
   const [smrNumber, setSmrNumber] = useState("");
   const [clientId, setClientId] = useState<number | null>(null);
-  const [selectedSiteIds, setSelectedSiteIds] = useState<Set<number>>(
-    new Set(),
-  );
+  const [selectedSiteId, setSelectedSiteId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
   const [lines, setLines] = useState<DraftLine[]>([]);
 
@@ -137,20 +138,12 @@ export default function SmrCreateForm({
     );
   }
 
-  function toggleSite(id: number) {
-    setSelectedSiteIds((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!smrNumber.trim()) return setError("Le numéro de SMR est requis.");
     if (clientId == null) return setError("Sélectionnez un client.");
-    if (selectedSiteIds.size === 0)
-      return setError("Sélectionnez au moins un site.");
+    if (selectedSiteId == null) return setError('Sélectionnez un site.');
     if (lines.length === 0)
       return setError("Ajoutez au moins une ligne de matériel.");
     if (warehouse == null || selectedProjectId == null)
@@ -163,16 +156,13 @@ export default function SmrCreateForm({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          smrNumber,
-          projectId: selectedProjectId,
-          warehouseId: warehouse.id,
-          clientId,
-          siteIds: Array.from(selectedSiteIds),
-          items: lines.map((l) => ({
-            hardwareProductId: l.hardwareProductId,
-            requestedQuantity: l.requestedQuantity,
-          })),
-        }),
+  smrNumber,
+  projectId: selectedProjectId,
+  warehouseId: warehouse.id,
+  clientId,
+  siteId: selectedSiteId,   // au lieu de siteIds: Array.from(...)
+  items: lines.map((l) => ({ hardwareProductId: l.hardwareProductId, requestedQuantity: l.requestedQuantity })),
+}),
       });
       if (!res.ok) throw new Error(await res.text());
       onCreated();
@@ -239,35 +229,29 @@ export default function SmrCreateForm({
             </div>
           </div>
 
-          <div className="mb-4">
-            <label className="block text-xs font-semibold text-slate-500 mb-1.5">
-              Sites destinataires
-            </label>
-            <div className="border border-slate-200 rounded-lg max-h-32 overflow-y-auto">
-              {!sites ? (
-                <div className="p-3 text-xs text-slate-400">Chargement…</div>
-              ) : sites.length === 0 ? (
-                <div className="p-3 text-xs text-slate-400">
-                  Aucun site disponible.
-                </div>
-              ) : (
-                sites.map((s) => (
-                  // APRÈS
-                  <label
-                    key={s.id}
-                    className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer border-b border-slate-50 last:border-0"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedSiteIds.has(s.id)}
-                      onChange={() => toggleSite(s.id)}
-                    />
-                    {s.siteName}
-                  </label>
-                ))
-              )}
-            </div>
-          </div>
+         
+<div className="mb-4">
+  <div className="flex items-center justify-between mb-1.5">
+    <label className="block text-xs font-semibold text-slate-500">Site destinataire</label>
+    <button
+      type="button"
+      onClick={() => setShowSiteForm(true)}
+      className="text-xs font-semibold text-[#124191] hover:underline"
+    >
+      + Nouveau site
+    </button>
+  </div>
+  <select
+    value={selectedSiteId ?? ''}
+    onChange={(e) => setSelectedSiteId(parseInt(e.target.value))}
+    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
+  >
+    <option value="">Sélectionner…</option>
+    {sites?.map((s) => (
+      <option key={s.id} value={s.id}>{s.siteName}</option>
+    ))}
+  </select>
+</div>
 
           <div className="mb-2">
             <label className="block text-xs font-semibold text-slate-500 mb-1.5">
@@ -373,16 +357,33 @@ export default function SmrCreateForm({
             >
               Annuler
             </button>
-            <button
+            <LoadingButton
               type="submit"
               disabled={submitting}
+              loading={submitting}
+              loadingText="Création…"
               className="px-5 py-2.5 text-sm font-semibold text-white bg-[#124191] rounded-lg hover:bg-[#0d3373] disabled:opacity-60"
             >
               {submitting ? "Création…" : "Créer la demande SMR"}
-            </button>
+            </LoadingButton>
           </div>
         </form>
       </div>
+
+      {showSiteForm && (
+        <SiteCreateForm
+          onClose={() => setShowSiteForm(false)}
+          onCreated={() => {
+            setShowSiteForm(false);
+            apiFetch(`${API_BASE}/Sites`)
+              .then((r) => r.json())
+              .then(setSites)
+              .catch(() => {});
+          }}
+        />
+      )}
     </div>
   );
 }
+      
+ 
