@@ -8,7 +8,7 @@ export default [
     route("smr", "routes/smr.tsx"),
     route("rma", "routes/Rma.tsx"),
     route("loans", "routes/loans.tsx"),
-    route("traceability", "routes/traceability.tsx"),
+    route("traceability", "routes/TraceAbility.tsx"),
     route("clients", "routes/client.tsx"),
   ]),
 ] satisfies RouteConfig;
