@@ -29,10 +29,13 @@ namespace backend.controllers
                 return BadRequest("Données de livraison invalides.");
 
             var delivery = await _context.DeliveryNotes
-     .FirstOrDefaultAsync(dn => dn.DeliveryNumber == dto.DeliveryNumber);
+    .FirstOrDefaultAsync(dn => dn.DeliveryNumber == dto.DeliveryNumber && dn.ProjectId == dto.ProjectId);
 
-            if (delivery == null)
-                return NotFound($"Aucun shipment '{dto.DeliveryNumber}' trouvé — importez-le d'abord.");
+if (delivery == null)
+    return NotFound($"Aucun shipment '{dto.DeliveryNumber}' trouvé pour ce projet — importez-le d'abord.");
+
+if (delivery.IsApproved)
+    return BadRequest($"Le shipment {dto.DeliveryNumber} est déjà confirmé.");
 
             // NOUVEAU : récupère l'entrepôt unique pour l'assigner au matériel injecté
             var warehouse = await _context.Warehouses.FirstOrDefaultAsync();

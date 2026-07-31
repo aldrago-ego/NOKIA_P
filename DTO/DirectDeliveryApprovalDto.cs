@@ -2,6 +2,7 @@ namespace backend.DTO
 {
     public class DirectDeliveryApprovalDto
     {
+        public int ProjectId { get; set; }
         public string DeliveryNumber { get; set; } = string.Empty;
         public string PurchaseOrder { get; set; } = string.Empty;
         public string SupervisorName { get; set; } = string.Empty;
