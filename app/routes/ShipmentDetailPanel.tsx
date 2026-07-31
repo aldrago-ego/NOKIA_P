@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { apiFetch } from '../apiFetch';
 import LoadingButton from '../Component/LoadingButton';
+import { useProject } from './project';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:5000/api';
 
@@ -268,9 +269,32 @@ function Field({ label, value, mono }: { label: string; value: string; mono?: bo
 }
 
 function DeliveredMaterialsTable({ shipment }: { shipment: ShipmentDetail }) {
+  // Regroupe les lignes par code matériel — la donnée brute reste 1 ligne par
+  // numéro de série (utile en base), mais l'affichage montre la quantité totale.
+  const grouped = React.useMemo(() => {
+    const map = new Map<string, { partNumber: string; name: string; quantity: number; defectiveQuantity: number; count: number }>();
+    shipment.materials.forEach((m) => {
+      const existing = map.get(m.partNumber);
+      if (existing) {
+        existing.quantity += m.quantity;
+        existing.defectiveQuantity += m.defectiveQuantity;
+        existing.count += 1;
+      } else {
+        map.set(m.partNumber, {
+          partNumber: m.partNumber,
+          name: m.name,
+          quantity: m.quantity,
+          defectiveQuantity: m.defectiveQuantity,
+          count: 1,
+        });
+      }
+    });
+    return Array.from(map.values());
+  }, [shipment.materials]);
+
   return (
     <div>
-      <h4 className="text-sm font-semibold text-[#0F172A] mb-3 flex items-center gap-2">
+      <h4 className="text-sm font-semibold text-[#0F172A] mb-3 flex items-center gap-2 text-black">
         Matériel réceptionné
         <span className="text-xs font-normal text-slate-400">
           confirmé par {shipment.approvedBy} le{' '}
@@ -286,10 +310,15 @@ function DeliveredMaterialsTable({ shipment }: { shipment: ShipmentDetail }) {
             <th className="text-right font-medium py-2">Défectueux</th>
           </tr>
         </thead>
-        <tbody>
-          {shipment.materials.map((m) => (
-            <tr key={m.id} className="border-b border-slate-50 text-black">
-              <td className="py-2 font-mono text-[#124191]">{m.partNumber}</td>
+        <tbody className="text-[#0F172A]">
+          {grouped.map((m) => (
+            <tr key={m.partNumber} className="border-b border-slate-50">
+              <td className="py-2 font-mono text-[#124191]">
+                {m.partNumber}
+                {m.count > 1 && (
+                  <span className="text-slate-400 font-sans"> · {m.count} unités</span>
+                )}
+              </td>
               <td className="py-2">{m.name}</td>
               <td className="py-2 text-right font-mono">{m.quantity}</td>
               <td className="py-2 text-right font-mono text-red-600">
@@ -356,7 +385,7 @@ function ConfirmDeliveryForm({
 });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
+  const { selectedProjectId } = useProject();
   function updateLine(idx: number, patch: Partial<AssetLine>) {
     setLines((prev) => prev.map((l, i) => (i === idx ? { ...l, ...patch } : l)));
   }
@@ -384,6 +413,7 @@ function ConfirmDeliveryForm({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          projectId: selectedProjectId,
           deliveryNumber: shipment.deliveryNumber,
           purchaseOrder: '',
           supervisorName,
@@ -560,9 +590,10 @@ function ConfirmDeliveryForm({
           loading={submitting}
           loadingText="Connexion en cours…"
           disabled={submitting}
-          className="px-5 py-2.5 text-sm font-semibold text-white bg-[#124191] rounded-lg hover:bg-[#0d3373] transition-colors disabled:opacity-60" children={undefined}        >
-              
-            </LoadingButton>
+          className="px-5 py-2.5 text-sm font-semibold text-white bg-[#124191] rounded-lg hover:bg-[#0d3373] transition-colors disabled:opacity-60"
+        >
+          {submitting ? 'Confirmation…' : 'Confirmer l’arrivée'}
+        </LoadingButton>
       </div>
     </form>
   );

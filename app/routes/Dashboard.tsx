@@ -6,8 +6,7 @@ import { useNavigate } from "react-router";
 import RmaDetailPanel from "./RmaDetailPanel";
 import { apiFetch } from "../apiFetch";
 
-const API_BASE =
-  import.meta.env.VITE_API_URL ?? "http://localhost:5000/api";
+const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:5000/api";
 
 // ---------- Types (miroir des DTO C#) ----------
 interface Project {
@@ -94,10 +93,12 @@ export default function Dashboard() {
   const [projectDropdownOpen, setProjectDropdownOpen] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-   const [warehouseId, setWarehouseId] = useState<number | null>(null);
-const [stockLines, setStockLines] = useState<any[] | null>(null);
-const [stockSearch, setStockSearch] = useState('');
-const [expandedInventoryDomains, setExpandedInventoryDomains] = useState<Set<string>>(new Set());
+  const [warehouseId, setWarehouseId] = useState<number | null>(null);
+  const [stockLines, setStockLines] = useState<any[] | null>(null);
+  const [stockSearch, setStockSearch] = useState("");
+  const [expandedInventoryDomains, setExpandedInventoryDomains] = useState<
+    Set<string>
+  >(new Set());
 
   // ---------- Stats (4 cards) ----------
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -150,39 +151,45 @@ const [expandedInventoryDomains, setExpandedInventoryDomains] = useState<Set<str
   }, []);
 
   useEffect(() => {
-  apiFetch(`${API_BASE}/Warehouses`).then((r) => r.json()).then((data) => setWarehouseId(data[0]?.id ?? null));
-}, []);
+    apiFetch(`${API_BASE}/Warehouses`)
+      .then((r) => r.json())
+      .then((data) => setWarehouseId(data[0]?.id ?? null));
+  }, []);
 
-const loadStockLines = useCallback(() => {
-  if (stockLines || warehouseId == null) return;
-  apiFetch(`${API_BASE}/PhysicalAssets/by-warehouse/${warehouseId}`)
-    .then((r) => r.json())
-    .then(setStockLines)
-    .catch(() => setStockLines([]));
-}, [stockLines, warehouseId]);
+  const loadStockLines = useCallback(() => {
+    if (stockLines || warehouseId == null) return;
+    apiFetch(`${API_BASE}/PhysicalAssets/by-warehouse/${warehouseId}`)
+      .then((r) => r.json())
+      .then(setStockLines)
+      .catch(() => setStockLines([]));
+  }, [stockLines, warehouseId]);
 
-function toggleInventoryDomain(domain: string) {
-  setExpandedInventoryDomains((prev) => {
-    const next = new Set(prev);
-    next.has(domain) ? next.delete(domain) : next.add(domain);
-    return next;
-  });
-}
+  function toggleInventoryDomain(domain: string) {
+    setExpandedInventoryDomains((prev) => {
+      const next = new Set(prev);
+      next.has(domain) ? next.delete(domain) : next.add(domain);
+      return next;
+    });
+  }
 
-const groupedStock = React.useMemo(() => {
-  const byDomain = new Map<string, Map<string, any[]>>();
-  if (!stockLines) return byDomain;
-  const filtered = stockSearch.trim()
-    ? stockLines.filter((l) => l.partNumber.toLowerCase().includes(stockSearch.toLowerCase()) || l.name.toLowerCase().includes(stockSearch.toLowerCase()))
-    : stockLines;
-  filtered.forEach((l) => {
-    if (!byDomain.has(l.domain)) byDomain.set(l.domain, new Map());
-    const gm = byDomain.get(l.domain)!;
-    if (!gm.has(l.materialGroup)) gm.set(l.materialGroup, []);
-    gm.get(l.materialGroup)!.push(l);
-  });
-  return byDomain;
-}, [stockLines, stockSearch]);
+  const groupedStock = React.useMemo(() => {
+    const byDomain = new Map<string, Map<string, any[]>>();
+    if (!stockLines) return byDomain;
+    const filtered = stockSearch.trim()
+      ? stockLines.filter(
+          (l) =>
+            l.partNumber.toLowerCase().includes(stockSearch.toLowerCase()) ||
+            l.name.toLowerCase().includes(stockSearch.toLowerCase()),
+        )
+      : stockLines;
+    filtered.forEach((l) => {
+      if (!byDomain.has(l.domain)) byDomain.set(l.domain, new Map());
+      const gm = byDomain.get(l.domain)!;
+      if (!gm.has(l.materialGroup)) gm.set(l.materialGroup, []);
+      gm.get(l.materialGroup)!.push(l);
+    });
+    return byDomain;
+  }, [stockLines, stockSearch]);
 
   // =========================================================
   // Chargement des stats + activités, à chaque changement de projet
@@ -262,7 +269,7 @@ const groupedStock = React.useMemo(() => {
   function toggleCard(key: CardKey) {
     const next = openCard === key ? null : key;
     setOpenCard(next);
-    if (next === 'inventory') loadStockLines();
+    if (next === "inventory") loadStockLines();
     if (next !== "inventory") setExpandedDomain(null);
     if (next === "smrs") loadSmrPreview();
   }
@@ -441,14 +448,26 @@ const groupedStock = React.useMemo(() => {
                   <span className="text-sm text-slate-400 italic">
                     Non disponible
                   </span>
-                ) : cfg.key === "inventory" ? (
+                ) : 
+                cfg.key === "inventory" ? (
                   <>
-                    <span className="text-lg font-bold text-[#0F172A]">
+                    <span className="text-base font-bold text-[#0F172A]">
                       {value!.toLocaleString("fr-FR")}
                     </span>
-                    <div className="text-[11px] text-slate-400 mt-1">
+                    <div className="text-[15px] text-slate-400 mt-1">
                       {activities && activities[0]
-                        ? `Dernière transaction : ${new Date(activities[0].timestamp).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`
+                        ? `Dernière transaction : ${new Date(
+                            activities[0].timestamp,
+                          ).toLocaleDateString("fr-FR", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                          })} à ${new Date(
+                            activities[0].timestamp,
+                          ).toLocaleTimeString("fr-FR", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}`
                         : "Aucune transaction récente"}
                     </div>
                   </>
@@ -464,78 +483,118 @@ const groupedStock = React.useMemo(() => {
       </div>
 
       {/* ---------- DETAIL PANEL — Real-Time Inventory par Domain ---------- */}
-      {openCard === 'inventory' && (
-  <div className="bg-white rounded-xl border border-slate-200 mb-6 overflow-hidden text-black">
-    <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 bg-slate-50">
-      <h3 className="text-sm font-semibold text-[#0F172A]">
-        Real-Time Inventory — matériel en stock (indépendant du projet)
-      </h3>
-      <button onClick={() => setOpenCard(null)} className="text-slate-400 hover:text-slate-600 text-sm">✕</button>
-    </div>
+      {openCard === "inventory" && (
+        <div className="bg-white rounded-xl border border-slate-200 mb-6 overflow-hidden text-black">
+          <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 bg-slate-50">
+            <h3 className="text-sm font-semibold text-[#0F172A]">
+              Real-Time Inventory — matériel en stock (indépendant du projet)
+            </h3>
+            <button
+              onClick={() => setOpenCard(null)}
+              className="text-slate-400 hover:text-slate-600 text-sm"
+            >
+              ✕
+            </button>
+          </div>
 
-    <div className="p-4">
-      <input
-        value={stockSearch}
-        onChange={(e) => setStockSearch(e.target.value)}
-        placeholder="Filtrer par code ou description…"
-        className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-[#124191]/30"
-      />
+          <div className="p-4">
+            <input
+              value={stockSearch}
+              onChange={(e) => setStockSearch(e.target.value)}
+              placeholder="Filtrer par code ou description…"
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-[#124191]/30"
+            />
 
-      {!stockLines ? (
-        <SkeletonRows count={5} />
-      ) : stockLines.length === 0 ? (
-        <p className="text-sm text-slate-400 text-center py-6">Aucune donnée de stock disponible.</p>
-      ) : (
-        Array.from(groupedStock.entries()).map(([domain, groupMap]) => {
-          const domainRefs = Array.from(groupMap.values()).flat().length;
-          const domainQty = Array.from(groupMap.values()).flat().reduce((a: number, l: any) => a + l.totalQuantity, 0);
-          const isOpen = expandedInventoryDomains.has(domain) || stockSearch.trim() !== '';
+            {!stockLines ? (
+              <SkeletonRows count={5} />
+            ) : stockLines.length === 0 ? (
+              <p className="text-sm text-slate-400 text-center py-6">
+                Aucune donnée de stock disponible.
+              </p>
+            ) : (
+              Array.from(groupedStock.entries()).map(([domain, groupMap]) => {
+                const domainRefs = Array.from(groupMap.values()).flat().length;
+                const domainQty = Array.from(groupMap.values())
+                  .flat()
+                  .reduce((a: number, l: any) => a + l.totalQuantity, 0);
+                const isOpen =
+                  expandedInventoryDomains.has(domain) ||
+                  stockSearch.trim() !== "";
 
-          return (
-            <div key={domain} className="border border-slate-100 rounded-lg mb-2 overflow-hidden">
-              <button
-                onClick={() => toggleInventoryDomain(domain)}
-                className="w-full flex items-center justify-between px-4 py-3 hover:bg-[#EAF1FC] transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  <svg className={`w-4 h-4 text-slate-400 transition-transform ${isOpen ? 'rotate-90' : ''}`} viewBox="0 0 24 24" fill="none">
-                    <path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                  <span className="font-semibold text-sm text-[#0F172A]">{domain}</span>
-                  <span className="text-xs text-slate-400">{domainRefs} réf. · {domainQty.toLocaleString('fr-FR')} unités</span>
-                </div>
-              </button>
-
-              {isOpen && (
-                <div className="border-t border-slate-100">
-                  {Array.from(groupMap.entries()).map(([materialGroup, lines]: [string, any[]]) => (
-                    <div key={materialGroup}>
-                      <div className="px-4 py-1.5 bg-slate-50/50 text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
-                        {materialGroup}
+                return (
+                  <div
+                    key={domain}
+                    className="border border-slate-100 rounded-lg mb-2 overflow-hidden"
+                  >
+                    <button
+                      onClick={() => toggleInventoryDomain(domain)}
+                      className="w-full flex items-center justify-between px-4 py-3 hover:bg-[#EAF1FC] transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <svg
+                          className={`w-4 h-4 text-slate-400 transition-transform ${isOpen ? "rotate-90" : ""}`}
+                          viewBox="0 0 24 24"
+                          fill="none"
+                        >
+                          <path
+                            d="M9 6l6 6-6 6"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                        <span className="font-semibold text-sm text-[#0F172A]">
+                          {domain}
+                        </span>
+                        <span className="text-xs text-slate-400">
+                          {domainRefs} réf. ·{" "}
+                          {domainQty.toLocaleString("fr-FR")} unités
+                        </span>
                       </div>
-                      <table className="w-full text-sm">
-                        <tbody>
-                          {lines.map((l: any) => (
-                            <tr key={l.hardwareProductId} className="border-b border-slate-50">
-                              <td className="px-4 py-2 font-mono text-xs text-[#124191]">{l.partNumber}</td>
-                              <td className="px-4 py-2">{l.name}</td>
-                              <td className="px-4 py-2 text-right font-mono">{l.totalQuantity}</td>
-                              <td className="px-4 py-2 text-right font-mono text-red-600">{l.defectiveQuantity || '—'}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          );
-        })
+                    </button>
+
+                    {isOpen && (
+                      <div className="border-t border-slate-100">
+                        {Array.from(groupMap.entries()).map(
+                          ([materialGroup, lines]: [string, any[]]) => (
+                            <div key={materialGroup}>
+                              <div className="px-4 py-1.5 bg-slate-50/50 text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
+                                {materialGroup}
+                              </div>
+                              <table className="w-full text-sm">
+                                <tbody>
+                                  {lines.map((l: any) => (
+                                    <tr
+                                      key={l.hardwareProductId}
+                                      className="border-b border-slate-50"
+                                    >
+                                      <td className="px-4 py-2 font-mono text-xs text-[#124191]">
+                                        {l.partNumber}
+                                      </td>
+                                      <td className="px-4 py-2">{l.name}</td>
+                                      <td className="px-4 py-2 text-right font-mono">
+                                        {l.totalQuantity}
+                                      </td>
+                                      <td className="px-4 py-2 text-right font-mono text-red-600">
+                                        {l.defectiveQuantity || "—"}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          ),
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
       )}
-    </div>
-  </div>
-)}
 
       {/* ---------- DETAIL PANEL — HW Shipment / SMRs / Faulty HW RMA (à câbler) ---------- */}
       {openCard && openCard !== "inventory" && (
@@ -682,6 +741,14 @@ const groupedStock = React.useMemo(() => {
                 })
               )}
             </tbody>
+            <div className="px-5 py-3 border-t border-slate-100 bg-slate-50/50 text-right">
+              <a
+                href="/history"
+                className="text-xs font-semibold text-[#124191] hover:underline"
+              >
+                Voir tout l'historique →
+              </a>
+            </div>
           </table>
         </div>
       </div>
@@ -712,7 +779,6 @@ function CreateProjectModal({
   const [endDate, setEndDate] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
- 
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

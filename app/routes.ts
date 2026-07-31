@@ -10,5 +10,6 @@ export default [
     route("loans", "routes/loans.tsx"),
     route("traceability", "routes/TraceAbility.tsx"),
     route("clients", "routes/client.tsx"),
+    route("history", "routes/history.tsx"),
   ]),
 ] satisfies RouteConfig;

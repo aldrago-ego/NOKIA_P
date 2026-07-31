@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import * as XLSX from "xlsx";
 import { useProject } from "./project";
 import { ShipmentModal } from "./ShipmentDetailPanel";
@@ -9,6 +9,7 @@ import { useAuth } from "./authContext";
 import StockCorrectionForm from "./StockCorrectionForm";
 import ProductEditForm from "./ProductEditForm";
 import LoadingButton from "../Component/LoadingButton";
+
 
 const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:5000/api";
 
@@ -50,33 +51,63 @@ interface PendingShipment {
   location: string;
   vesselArrivalDate: string | null;
 }
+const DOMAIN_COLORS: Record<string, { bg: string; text: string; ring: string; hex: string }> = {
+  RAN: { bg: "bg-violet-50", text: "text-violet-700", ring: "ring-violet-200", hex: "#7C3AED" },
+  Consumables: { bg: "bg-emerald-50", text: "text-emerald-700", ring: "ring-emerald-200", hex: "#059669" },
+  Energy: { bg: "bg-amber-50", text: "text-amber-700", ring: "ring-amber-200", hex: "#D97706" },
+  Core: { bg: "bg-sky-50", text: "text-sky-700", ring: "ring-sky-200", hex: "#0284C7" },
+  Microwave: { bg: "bg-[#EAF1FC]", text: "text-[#124191]", ring: "ring-blue-200", hex: "#124191" },
+};
+const domainColor = (d: string) =>
+  DOMAIN_COLORS[d] ?? { bg: "bg-slate-50", text: "text-slate-700", ring: "ring-slate-200", hex: "#64748B" };
+
+const ACTIVITY_ICON: Record<string, { icon: string; color: string; bg: string }> = {
+  DELIVERY_CONFIRMED: { icon: "↓", color: "text-emerald-600", bg: "bg-emerald-50" },
+  SHIPMENTS_IMPORTED: { icon: "↓", color: "text-[#124191]", bg: "bg-[#EAF1FC]" },
+  SMR_APPROVED: { icon: "↑", color: "text-amber-600", bg: "bg-amber-50" },
+  STOCK_LOANED: { icon: "↑", color: "text-amber-600", bg: "bg-amber-50" },
+  STOCK_LOAN_RETURNED: { icon: "↓", color: "text-emerald-600", bg: "bg-emerald-50" },
+  RMA_SHIPPED: { icon: "↑", color: "text-red-600", bg: "bg-red-50" },
+  STOCK_CORRECTED: { icon: "⇄", color: "text-slate-600", bg: "bg-slate-100" },
+  DEFECT_MARKED: { icon: "⚠", color: "text-red-600", bg: "bg-red-50" },
+};
+
+function timeAgo(iso: string) {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 60) return `Il y a ${mins} min`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `Aujourd'hui, ${new Date(iso).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`;
+  const days = Math.floor(hours / 24);
+  if (days === 1) return `Hier, ${new Date(iso).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`;
+  return new Date(iso).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" });
+}
 
 export default function WarehousePage() {
   const { selectedProjectId, selectedProject } = useProject();
-  const [showCategoryManager, setShowCategoryManager] = useState(false);
   const { isAdmin, isElevated } = useAuth();
+
+  const [showCategoryManager, setShowCategoryManager] = useState(false);
   const [showStockCorrection, setShowStockCorrection] = useState(false);
-  const [selectedWarehouseId, setSelectedWarehouseId] = useState<number | null>(
-    null,
-  );
+  const [selectedWarehouseId, setSelectedWarehouseId] = useState<number | null>(null);
   const [showWithdrawalForm, setShowWithdrawalForm] = useState(false);
   const [editingProductId, setEditingProductId] = useState<number | null>(null);
   const [lines, setLines] = useState<WarehouseAssetLine[] | null>(null);
   const [error, setError] = useState(false);
   const [search, setSearch] = useState("");
-  const [expandedDomains, setExpandedDomains] = useState<Set<string>>(
-    new Set(),
-  );
   const [toast, setToast] = useState<string | null>(null);
 
-  // ---------- Shipments en attente de confirmation (scopé au projet actif) ----------
-  const [pendingShipments, setPendingShipments] = useState<
-    PendingShipment[] | null
-  >(null);
+  // ---------- Filtres (nouveaux) ----------
+  const [domainFilter, setDomainFilter] = useState<string>("");
+  const [statusFilter, setStatusFilter] = useState<"" | "good" | "defective">("");
+
+  const [pendingShipments, setPendingShipments] = useState<PendingShipment[] | null>(null);
   const [reviewShipmentId, setReviewShipmentId] = useState<number | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
 
-  // ---------- Chargement de l'entrepôt (un seul, sélection automatique) ----------
+  // ---------- Activité récente (nouveau) ----------
+  const [recentActivity, setRecentActivity] = useState<any[] | null>(null);
+
   useEffect(() => {
     apiFetch(`${API_BASE}/Warehouses`)
       .then((res) => res.json())
@@ -96,34 +127,34 @@ export default function WarehousePage() {
       .catch(() => setError(true));
   }, [selectedWarehouseId]);
 
-  useEffect(() => {
-    loadLines();
-  }, [loadLines]);
+  useEffect(() => { loadLines(); }, [loadLines]);
 
-  // ---------- Charge les shipments Pending du projet actif ----------
   const loadPendingShipments = useCallback(() => {
     if (selectedProjectId == null) return;
     apiFetch(`${API_BASE}/DeliveryNotes?projectId=${selectedProjectId}`)
       .then((res) => res.json())
       .then((data: any[]) => {
         setPendingShipments(
-          data
-            .filter((s) => s.status === "Pending")
-            .map((s) => ({
-              id: s.id,
-              deliveryNumber: s.deliveryNumber,
-              scope: s.scope,
-              location: s.location,
-              vesselArrivalDate: s.vesselArrivalDate,
-            })),
+          data.filter((s) => s.status === "Pending").map((s) => ({
+            id: s.id, deliveryNumber: s.deliveryNumber, scope: s.scope,
+            location: s.location, vesselArrivalDate: s.vesselArrivalDate,
+          }))
         );
       })
       .catch(() => setPendingShipments([]));
   }, [selectedProjectId]);
 
-  useEffect(() => {
-    loadPendingShipments();
-  }, [loadPendingShipments]);
+  useEffect(() => { loadPendingShipments(); }, [loadPendingShipments]);
+
+  const loadRecentActivity = useCallback(() => {
+    if (selectedProjectId == null) return;
+    apiFetch(`${API_BASE}/ActivityLogs/history?projectId=${selectedProjectId}&page=1&pageSize=5`)
+      .then((r) => r.json())
+      .then((data) => setRecentActivity(data.items))
+      .catch(() => setRecentActivity([]));
+  }, [selectedProjectId]);
+
+  useEffect(() => { loadRecentActivity(); }, [loadRecentActivity]);
 
   function showToast(msg: string) {
     setToast(msg);
@@ -132,51 +163,20 @@ export default function WarehousePage() {
 
   function handleConfirmed() {
     setReviewShipmentId(null);
-    loadPendingShipments(); // la ligne confirmée disparaît de la liste d'attente
-    loadLines(); // le matériel injecté apparaît dans le stock
+    loadPendingShipments();
+    loadLines();
+    loadRecentActivity();
     showToast("Livraison confirmée — matériel injecté en stock");
-  }
-
-  // ---------- Regroupement par Domain > MaterialGroup ----------
-  const grouped = React.useMemo(() => {
-    if (!lines) return null;
-    const filtered = search.trim()
-      ? lines.filter(
-          (l) =>
-            l.partNumber.toLowerCase().includes(search.toLowerCase()) ||
-            l.name.toLowerCase().includes(search.toLowerCase()),
-        )
-      : lines;
-
-    const byDomain = new Map<string, Map<string, WarehouseAssetLine[]>>();
-    filtered.forEach((l) => {
-      if (!byDomain.has(l.domain)) byDomain.set(l.domain, new Map());
-      const groupMap = byDomain.get(l.domain)!;
-      if (!groupMap.has(l.materialGroup)) groupMap.set(l.materialGroup, []);
-      groupMap.get(l.materialGroup)!.push(l);
-    });
-    return byDomain;
-  }, [lines, search]);
-
-  function toggleDomain(domain: string) {
-    setExpandedDomains((prev) => {
-      const next = new Set(prev);
-      next.has(domain) ? next.delete(domain) : next.add(domain);
-      return next;
-    });
   }
 
   async function updateDefect(assetId: number, value: number, maxQty: number) {
     if (value < 0 || value > maxQty) return;
     try {
-      const res = await apiFetch(
-        `${API_BASE}/PhysicalAssets/${assetId}/defect`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ defectiveQuantity: value }),
-        },
-      );
+      const res = await apiFetch(`${API_BASE}/PhysicalAssets/${assetId}/defect`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ defectiveQuantity: value }),
+      });
       if (!res.ok) throw new Error();
       loadLines();
       showToast("Statut mis à jour");
@@ -185,18 +185,64 @@ export default function WarehousePage() {
     }
   }
 
+  // ---------- Agrégats globaux ----------
   const totalRefs = lines?.length ?? 0;
   const totalQty = lines?.reduce((a, l) => a + l.totalQuantity, 0) ?? 0;
   const totalDefect = lines?.reduce((a, l) => a + l.defectiveQuantity, 0) ?? 0;
 
+  // ---------- Agrégats par domaine (pour mini-cards + donut) ----------
+  const domainStats = useMemo(() => {
+    if (!lines) return [];
+    const map = new Map<string, { refs: number; qty: number }>();
+    lines.forEach((l) => {
+      const cur = map.get(l.domain) ?? { refs: 0, qty: 0 };
+      cur.refs += 1;
+      cur.qty += l.totalQuantity;
+      map.set(l.domain, cur);
+    });
+    return Array.from(map.entries())
+      .map(([domain, stats]) => ({ domain, ...stats, pct: totalQty > 0 ? (stats.qty / totalQty) * 100 : 0 }))
+      .sort((a, b) => b.qty - a.qty);
+  }, [lines, totalQty]);
+
+  // ---------- Lignes filtrées (recherche + domaine + statut) ----------
+  const filteredLines = useMemo(() => {
+    if (!lines) return [];
+    return lines.filter((l) => {
+      if (domainFilter && l.domain !== domainFilter) return false;
+      if (statusFilter === "defective" && l.defectiveQuantity === 0) return false;
+      if (statusFilter === "good" && l.defectiveQuantity > 0) return false;
+      if (search.trim()) {
+        const q = search.toLowerCase();
+        if (!l.partNumber.toLowerCase().includes(q) && !l.name.toLowerCase().includes(q)) return false;
+      }
+      return true;
+    });
+  }, [lines, domainFilter, statusFilter, search]);
+
+  // Regroupe les lignes filtrées par MaterialGroup pour l'affichage du tableau
+  const filteredGrouped = useMemo(() => {
+    const map = new Map<string, WarehouseAssetLine[]>();
+    filteredLines.forEach((l) => {
+      if (!map.has(l.materialGroup)) map.set(l.materialGroup, []);
+      map.get(l.materialGroup)!.push(l);
+    });
+    return map;
+  }, [filteredLines]);
+
+  const activeDomainLabel = domainFilter || "Tous les domaines";
+  const activeDomainRefs = filteredLines.length;
+  const activeDomainQty = filteredLines.reduce((a, l) => a + l.totalQuantity, 0);
+
   return (
     <div className="p-6 bg-[#F4F6FA] min-h-full">
+      {/* ---------- En-tête ---------- */}
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <h1 className="text-xl font-bold text-[#0F172A]">Warehouse</h1>
             {selectedProject && (
-              <span className="font-mono text-xs bg-[#EAF1FC] text-[#124191] px-2 py-0.5 rounded-full font-semibold">
+              <span className="font-mono text-xs bg-[#EAF1FC] text-[#124191] px-2.5 py-1 rounded-full font-semibold">
                 {selectedProject.code} — {selectedProject.name}
               </span>
             )}
@@ -205,72 +251,65 @@ export default function WarehousePage() {
             Détail du matériel présent actuellement en entrepôt
           </p>
         </div>
-        <button
-          onClick={() => setShowImportModal(true)}
-          className="flex items-center gap-1.5 bg-white border border-slate-200 text-sm font-semibold text-[#0F172A] rounded-lg px-4 py-2.5 hover:border-[#124191] transition-colors"
-        >
-          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
-            <path
-              d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          Importer shipments (Excel)
-        </button>
 
-        <button
-          onClick={() => setShowWithdrawalForm(true)}
-          disabled={!lines || lines.length === 0}
-          className="flex items-center gap-1.5 bg-white border border-slate-200 text-sm font-semibold text-[#0F172A] rounded-lg px-4 py-2.5 hover:border-[#124191] transition-colors disabled:opacity-50"
-        >
-          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
-            <path
-              d="M12 21V9m0 12l-4-4m4 4l4-4M4 5h16"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          Donner à un client (sans SMR)
-        </button>
-        <button
-          onClick={() => setShowCategoryManager(true)}
-          className="flex items-center gap-1.5 bg-white border border-slate-200 text-sm font-semibold text-[#0F172A] rounded-lg px-4 py-2.5 hover:border-[#124191] transition-colors"
-        >
-          Gérer les catégories
-        </button>
-        {isAdmin && (
+        <div className="flex items-center gap-2 flex-wrap">
           <button
-            onClick={() => setShowStockCorrection(true)}
-            className="flex items-center gap-1.5 bg-white border border-amber-300 text-sm font-semibold text-amber-700 rounded-lg px-4 py-2.5 hover:bg-amber-50 transition-colors"
+            onClick={() => setShowImportModal(true)}
+            className="flex items-center gap-1.5 bg-white border border-slate-200 text-sm font-semibold text-[#0F172A] rounded-lg px-4 py-2.5 hover:border-[#124191] hover:shadow-sm transition-all"
           >
-            Mettre à jour le stock
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
+              <path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            Importer (Excel)
           </button>
-        )}
+
+          <button
+            onClick={() => setShowWithdrawalForm(true)}
+            disabled={!lines || lines.length === 0}
+            className="flex items-center gap-1.5 bg-white border border-slate-200 text-sm font-semibold text-[#0F172A] rounded-lg px-4 py-2.5 hover:border-[#124191] hover:shadow-sm transition-all disabled:opacity-50"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
+              <path d="M12 21V9m0 12l-4-4m4 4l4-4M4 5h16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            Donner à un client
+          </button>
+
+          <button
+            onClick={() => setShowCategoryManager(true)}
+            className="flex items-center gap-1.5 bg-white border border-slate-200 text-sm font-semibold text-[#0F172A] rounded-lg px-4 py-2.5 hover:border-[#124191] hover:shadow-sm transition-all"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
+              <rect x="3" y="3" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.8" />
+              <rect x="14" y="3" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.8" />
+              <rect x="3" y="14" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.8" />
+              <rect x="14" y="14" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.8" />
+            </svg>
+            Catégories
+          </button>
+
+          {isAdmin && (
+            <button
+              onClick={() => setShowStockCorrection(true)}
+              className="flex items-center gap-1.5 bg-[#F2790B] text-sm font-semibold text-white rounded-lg px-4 py-2.5 hover:bg-[#d96a06] hover:shadow-md transition-all"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
+                <path d="M21 12a9 9 0 11-2.64-6.36M21 4v6h-6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              Mettre à jour le stock
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* ---------- Bandeau : shipments en attente de confirmation ---------- */}
+      {/* ---------- Bandeau shipments en attente ---------- */}
       {pendingShipments && pendingShipments.length > 0 && (
-        <div className="mb-5 bg-amber-50 border border-amber-200 rounded-xl overflow-hidden">
+        <div className="mb-5 bg-amber-50 border border-amber-200 rounded-xl overflow-hidden animate-[fadeIn_.3s_ease]">
           <div className="flex items-center gap-2 px-4 py-3 border-b border-amber-200">
-            <svg
-              className="w-4 h-4 text-amber-600 flex-shrink-0"
-              viewBox="0 0 24 24"
-              fill="none"
-            >
-              <path
-                d="M12 9v4m0 4h.01M10.3 3.9L2.7 17a2 2 0 001.7 3h15.2a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"
-                stroke="currentColor"
-                strokeWidth="1.8"
-              />
+            <svg className="w-4 h-4 text-amber-600 flex-shrink-0" viewBox="0 0 24 24" fill="none">
+              <path d="M12 9v4m0 4h.01M10.3 3.9L2.7 17a2 2 0 001.7 3h15.2a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z" stroke="currentColor" strokeWidth="1.8" />
             </svg>
             <span className="text-sm font-semibold text-amber-800">
-              {pendingShipments.length} shipment(s) en attente de confirmation
-              pour ce projet
+              {pendingShipments.length} shipment(s) en attente de confirmation pour ce projet
             </span>
           </div>
           <div className="divide-y divide-amber-100">
@@ -281,233 +320,307 @@ export default function WarehousePage() {
                 className="w-full flex items-center justify-between px-4 py-2.5 text-sm hover:bg-amber-100/60 transition-colors text-left"
               >
                 <span className="flex items-center gap-2">
-                  <span className="font-mono text-[#124191] font-semibold">
-                    {s.deliveryNumber}
-                  </span>
-                  <span className="text-slate-500">
-                    {s.scope} · {s.location}
-                  </span>
+                  <span className="font-mono text-[#124191] font-semibold">{s.deliveryNumber}</span>
+                  <span className="text-slate-500">{s.scope} · {s.location}</span>
                 </span>
-                <span className="text-xs font-semibold text-amber-700">
-                  Confirmer la réception →
-                </span>
+                <span className="text-xs font-semibold text-amber-700">Confirmer la réception →</span>
               </button>
             ))}
           </div>
         </div>
       )}
 
-      <div className="flex items-center justify-between mb-5 flex-wrap gap-3 text-sm text-black text-slate-500">
-        <div className="flex gap-2 flex-wrap">
-          <StatChip label="Références" value={totalRefs} />
-          <StatChip label="Qté totale" value={totalQty} />
-          <StatChip label="Défectueux" value={totalDefect} danger />
+      {/* ---------- KPI : global + par domaine ---------- */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-5">
+        <KpiCard label="Références" value={totalRefs} accent="text-[#124191]" bg="bg-[#EAF1FC]" icon="box" />
+        <KpiCard label="Qté totale" value={totalQty} accent="text-[#124191]" bg="bg-[#EAF1FC]" icon="stack" />
+        <KpiCard label="Défectueux" value={totalDefect} accent="text-red-600" bg="bg-red-50" icon="alert" danger />
+        {domainStats.slice(0, 4).map((d) => {
+          const c = domainColor(d.domain);
+          return (
+            <KpiCard
+              key={d.domain}
+              label={d.domain}
+              value={d.qty}
+              sub={`${d.refs} réf.`}
+              accent={c.text}
+              bg={c.bg}
+              icon="dot"
+            />
+          );
+        })}
+      </div>
+
+      {/* ---------- Recherche + filtres ---------- */}
+      <div className="flex items-center gap-2 mb-5 flex-wrap">
+        <div className="relative flex-1 min-w-[220px]">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" viewBox="0 0 24 24" fill="none">
+            <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="1.8" />
+            <path d="M21 21l-4.3-4.3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          </svg>
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Rechercher par code ou description…"
+            className="w-full border border-slate-200 rounded-lg pl-9 pr-3 py-2.5 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#124191]/30 focus:border-[#124191] transition-all"
+          />
         </div>
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Filtrer par code ou description…"
-          className="border border-slate-200 rounded-lg px-3 py-2 text-sm w-64 focus:outline-none focus:ring-2 focus:ring-[#124191]/30 focus:border-[#124191] text-black"
-        />
+
+        <select
+          value={domainFilter}
+          onChange={(e) => setDomainFilter(e.target.value)}
+          className="border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#124191]/30"
+        >
+          <option value="">Toutes les catégories</option>
+          {domainStats.map((d) => (
+            <option key={d.domain} value={d.domain}>{d.domain}</option>
+          ))}
+        </select>
+
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value as any)}
+          className="border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#124191]/30"
+        >
+          <option value="">Tous statuts</option>
+          <option value="good">Bon état</option>
+          <option value="defective">Défectueux</option>
+        </select>
       </div>
 
       {error ? (
         <p className="text-sm text-red-400 text-center py-10">
           Impossible de charger le stock de cet entrepôt.
         </p>
-      ) : !grouped ? (
-        <div className="space-y-3">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div
-              key={i}
-              className="h-16 bg-white border border-slate-200 rounded-xl animate-pulse"
-            />
+      ) : !lines ? (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="h-64 bg-white border border-slate-200 rounded-xl animate-pulse" />
           ))}
         </div>
-      ) : grouped.size === 0 ? (
-        <p className="text-sm text-slate-400 text-center py-10">
-          Aucun matériel ne correspond à ce filtre.
-        </p>
       ) : (
-        Array.from(grouped.entries()).map(([domain, groupMap]) => {
-          const domainQty = Array.from(groupMap.values())
-            .flat()
-            .reduce((a, l) => a + l.totalQuantity, 0);
-          const domainRefs = Array.from(groupMap.values()).flat().length;
-          const isOpen = expandedDomains.has(domain) || search.trim() !== "";
-
-          return (
-            <div
-              key={domain}
-              className="bg-white rounded-xl border border-slate-200 mb-3 overflow-hidden"
-            >
-              <button
-                onClick={() => toggleDomain(domain)}
-                className="w-full flex items-center justify-between px-5 py-3.5 bg-slate-50 hover:bg-[#EAF1FC] transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  <svg
-                    className={`w-4 h-4 text-slate-400 transition-transform ${isOpen ? "rotate-90" : ""}`}
-                    viewBox="0 0 24 24"
-                    fill="none"
+        <div className="grid grid-cols-1 lg:grid-cols-[280px_320px_1fr] gap-4">
+          {/* ---------- Colonne 1 : Donut inventaire par catégorie ---------- */}
+          <div className="bg-white rounded-xl border border-slate-200 p-5">
+            <h3 className="text-sm font-bold text-[#0F172A] mb-4">Inventaire par catégorie</h3>
+            <DomainDonut stats={domainStats} total={totalQty} />
+            <div className="mt-4 space-y-2">
+              {domainStats.map((d) => {
+                const c = domainColor(d.domain);
+                return (
+                  <button
+                    key={d.domain}
+                    onClick={() => setDomainFilter(domainFilter === d.domain ? "" : d.domain)}
+                    className={`w-full flex items-center justify-between text-xs px-2 py-1.5 rounded-lg transition-colors ${
+                      domainFilter === d.domain ? "bg-slate-50 ring-1 " + c.ring : "hover:bg-slate-50"
+                    }`}
                   >
-                    <path
-                      d="M9 6l6 6-6 6"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                  <span className="font-bold text-sm text-[#0F172A]">
-                    {domain}
-                  </span>
-                  <span className="text-xs text-slate-400 font-mono">
-                    {domainRefs} réf. · {domainQty.toLocaleString("fr-FR")}{" "}
-                    unités
-                  </span>
-                </div>
-              </button>
+                    <span className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: c.hex }} />
+                      <span className="text-slate-600 font-medium">{d.domain}</span>
+                    </span>
+                    <span className="text-slate-400 font-mono">{d.qty.toLocaleString("fr-FR")} ({d.pct.toFixed(1)}%)</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
-              {isOpen && (
-                <div>
-                  {Array.from(groupMap.entries()).map(
-                    ([materialGroup, groupLines]) => (
-                      <div
-                        key={materialGroup}
-                        className="border-t border-slate-100 text-black"
-                      >
-                        <div className="px-5 py-2 bg-slate-50/50 text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                          {materialGroup}
-                        </div>
-                        <table className="w-full text-sm text-black">
-                          <thead>
-                            <tr className="text-xs text-slate-400 border-b border-slate-100">
-                              <th className="text-left font-medium px-5 py-2">
-                                Code
-                              </th>
-                              <th className="text-left font-medium px-5 py-2">
-                                Description
-                              </th>
-                              <th className="text-right font-medium px-5 py-2">
-                                Qté en stock
-                              </th>
-                              <th className="text-right font-medium px-5 py-2">
-                                Qté défectueuse
-                              </th>
-                              <th className="text-left font-medium px-5 py-2">
-                                Statut
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody className="text-black">
-                            {groupLines.map((line) => (
-                              <MaterialRows
-                                key={line.hardwareProductId}
-
-                                line={line}
-                                onDefectSave={updateDefect}
-                                onEdit={
-                                  isElevated
-                                    ? () =>
-                                        setEditingProductId(
-                                          line.hardwareProductId,
-                                        )
-                                    : undefined
-                                }
-                              />
-                            ))}
-                          </tbody>
-                        </table>
+          {/* ---------- Colonne 2 : Activité récente ---------- */}
+          <div className="bg-white rounded-xl border border-slate-200 p-5">
+            <h3 className="text-sm font-bold text-[#0F172A] mb-4">Activité récente</h3>
+            {!recentActivity ? (
+              <div className="space-y-3">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="h-10 bg-slate-100 rounded-lg animate-pulse" />
+                ))}
+              </div>
+            ) : recentActivity.length === 0 ? (
+              <p className="text-xs text-slate-400 text-center py-6">Aucune activité récente.</p>
+            ) : (
+              <div className="space-y-1">
+                {recentActivity.map((a) => {
+                  const cfg = ACTIVITY_ICON[a.type] ?? { icon: "•", color: "text-slate-500", bg: "bg-slate-100" };
+                  return (
+                    <div key={a.id} className="flex items-start gap-3 py-2.5 border-b border-slate-50 last:border-0">
+                      <span className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${cfg.bg} ${cfg.color} font-bold text-sm`}>
+                        {cfg.icon}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-xs text-slate-700 leading-snug line-clamp-2">{a.description}</p>
+                        <p className="text-[10px] text-slate-400 mt-0.5">{timeAgo(a.timestamp)}</p>
                       </div>
-                    ),
-                  )}
-                </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            <a href="/history" className="block text-xs font-semibold text-[#124191] hover:underline mt-3">
+              Voir tout l'historique →
+            </a>
+          </div>
+
+          {/* ---------- Colonne 3 : tableau détaillé ---------- */}
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50">
+              <span className="font-bold text-sm text-[#0F172A]">
+                {activeDomainLabel} <span className="text-slate-400 font-normal">({activeDomainRefs} réf. · {activeDomainQty.toLocaleString("fr-FR")} unités)</span>
+              </span>
+            </div>
+
+            <div className="max-h-[560px] overflow-y-auto">
+              {filteredLines.length === 0 ? (
+                <p className="text-sm text-slate-400 text-center py-10">
+                  Aucun matériel ne correspond à ce filtre.
+                </p>
+              ) : (
+                Array.from(filteredGrouped.entries()).map(([materialGroup, groupLines]) => (
+                  <div key={materialGroup}>
+                    <div className="px-5 py-2 bg-slate-50/50 text-[11px] font-semibold text-slate-500 uppercase tracking-wide sticky top-0">
+                      {materialGroup}
+                    </div>
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-xs text-slate-400 border-b border-slate-100">
+                          <th className="text-left font-medium px-5 py-2">Code</th>
+                          <th className="text-left font-medium px-5 py-2">Description</th>
+                          <th className="text-right font-medium px-5 py-2">Qté</th>
+                          <th className="text-right font-medium px-5 py-2">Déf.</th>
+                          <th className="text-left font-medium px-5 py-2">Statut</th>
+                        </tr>
+                      </thead>
+                      <tbody className="text-black">
+                        {groupLines.map((line) => (
+                          <MaterialRows
+                            key={line.hardwareProductId}
+                            line={line}
+                            onDefectSave={updateDefect}
+                            onEdit={isElevated ? () => setEditingProductId(line.hardwareProductId) : undefined}
+                          />
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ))
               )}
             </div>
-          );
-        })
+          </div>
+        </div>
       )}
 
       {toast && (
-        <div className="fixed bottom-6 right-6 bg-[#0F172A] text-white text-sm font-semibold px-5 py-3 rounded-lg shadow-xl z-50">
+        <div className="fixed bottom-6 right-6 bg-[#0F172A] text-white text-sm font-semibold px-5 py-3 rounded-lg shadow-xl z-50 animate-[slideUp_.2s_ease]">
           {toast}
         </div>
       )}
 
-      {/* Modale de confirmation de réception (réutilise le formulaire du Dashboard) */}
+      {/* ---------- Modales (inchangées) ---------- */}
       {reviewShipmentId != null && (
-        <ShipmentModal
-          shipmentId={reviewShipmentId}
-          onClose={() => setReviewShipmentId(null)}
-          onConfirmed={handleConfirmed}
-        />
+        <ShipmentModal shipmentId={reviewShipmentId} onClose={() => setReviewShipmentId(null)} onConfirmed={handleConfirmed} />
       )}
-
-      {/* Modale d'import avec confirmation explicite du projet cible */}
       {showImportModal && (
         <ImportShipmentsModal
           onClose={() => setShowImportModal(false)}
           onImported={() => {
             setShowImportModal(false);
             loadPendingShipments();
-            showToast(
-              "Import terminé — vérifiez les shipments en attente ci-dessous",
-            );
+            showToast("Import terminé — vérifiez les shipments en attente");
           }}
         />
       )}
       {showCategoryManager && (
-        <CategoryManager
-          onClose={() => {
-            setShowCategoryManager(false);
-            loadLines(); // recharge le stock pour refléter les nouvelles catégories immédiatement
-          }}
+        <CategoryManager onClose={() => { setShowCategoryManager(false); loadLines(); }} />
+      )}
+      {showWithdrawalForm && lines && selectedWarehouseId != null && selectedProjectId != null && (
+        <StockWithdrawalForm
+          warehouseId={selectedWarehouseId}
+          projectId={selectedProjectId}
+          stockLines={lines}
+          onClose={() => setShowWithdrawalForm(false)}
+          onDone={() => { setShowWithdrawalForm(false); loadLines(); loadRecentActivity(); showToast("Matériel donné au client — stock mis à jour"); }}
         />
       )}
-      {showWithdrawalForm &&
-        lines &&
-        selectedWarehouseId != null &&
-        selectedProjectId != null && (
-          <StockWithdrawalForm
-            warehouseId={selectedWarehouseId}
-            projectId={selectedProjectId}
-            stockLines={lines}
-            onClose={() => setShowWithdrawalForm(false)}
-            onDone={() => {
-              setShowWithdrawalForm(false);
-              loadLines();
-              showToast("Matériel donné au client — stock mis à jour");
-            }}
-          />
-        )}
-      {showStockCorrection &&
-        lines &&
-        selectedWarehouseId != null &&
-        selectedProjectId != null && (
-          <StockCorrectionForm
-            warehouseId={selectedWarehouseId}
-            projectId={selectedProjectId}
-            stockLines={lines}
-            onClose={() => setShowStockCorrection(false)}
-            onDone={() => {
-              setShowStockCorrection(false);
-              loadLines();
-              showToast("Stock mis à jour");
-            }}
-          />
-        )}
+      {showStockCorrection && lines && selectedWarehouseId != null && selectedProjectId != null && (
+        <StockCorrectionForm
+          warehouseId={selectedWarehouseId}
+          projectId={selectedProjectId}
+          stockLines={lines}
+          onClose={() => setShowStockCorrection(false)}
+          onDone={() => { setShowStockCorrection(false); loadLines(); loadRecentActivity(); showToast("Stock mis à jour"); }}
+        />
+      )}
       {editingProductId != null && (
         <ProductEditForm
           hardwareProductId={editingProductId}
           onClose={() => setEditingProductId(null)}
-          onSaved={() => {
-            setEditingProductId(null);
-            loadLines();
-            showToast("Fiche produit mise à jour");
-          }}
+          onSaved={() => { setEditingProductId(null); loadLines(); showToast("Fiche produit mise à jour"); }}
         />
       )}
+    </div>
+  );
+}
+
+// ---------- Sous-composants ----------
+
+function KpiCard({
+  label, value, sub, accent, bg, icon, danger,
+}: { label: string; value: number; sub?: string; accent: string; bg: string; icon: string; danger?: boolean }) {
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 p-4 hover:shadow-sm transition-shadow">
+      <div className="flex items-center justify-between mb-2">
+        <span className={`w-8 h-8 rounded-lg ${bg} ${accent} flex items-center justify-center`}>
+          {icon === "alert" ? (
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 9v4m0 4h.01M10.3 3.9L2.7 17a2 2 0 001.7 3h15.2a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z" stroke="currentColor" strokeWidth="1.8" /></svg>
+          ) : icon === "box" ? (
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M3 9.5L12 4l9 5.5V19a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z" stroke="currentColor" strokeWidth="1.8" /></svg>
+          ) : icon === "stack" ? (
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          ) : (
+            <span className="w-2 h-2 rounded-full bg-current" />
+          )}
+        </span>
+      </div>
+      <div className={`text-xl font-bold ${danger && value > 0 ? "text-red-600" : "text-[#0F172A]"}`}>
+        {value.toLocaleString("fr-FR")}
+      </div>
+      <div className="text-xs text-slate-400 mt-0.5">{label}{sub ? ` · ${sub}` : ""}</div>
+    </div>
+  );
+}
+
+function DomainDonut({ stats, total }: { stats: { domain: string; qty: number; pct: number }[]; total: number }) {
+  const size = 160, stroke = 22, r = (size - stroke) / 2, c = 2 * Math.PI * r;
+  let offset = 0;
+
+  return (
+    <div className="relative flex items-center justify-center">
+      <svg width={size} height={size} className="-rotate-90">
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#F1F5F9" strokeWidth={stroke} />
+        {stats.map((d) => {
+          const dash = (d.pct / 100) * c;
+          const circle = (
+            <circle
+              key={d.domain}
+              cx={size / 2}
+              cy={size / 2}
+              r={r}
+              fill="none"
+              stroke={domainColor(d.domain).hex}
+              strokeWidth={stroke}
+              strokeDasharray={`${dash} ${c - dash}`}
+              strokeDashoffset={-offset}
+              strokeLinecap="butt"
+              className="transition-all duration-500"
+            />
+          );
+          offset += dash;
+          return circle;
+        })}
+      </svg>
+      <div className="absolute flex flex-col items-center">
+        <span className="text-lg font-bold text-[#0F172A]">{total.toLocaleString("fr-FR")}</span>
+        <span className="text-[10px] text-slate-400">Total articles</span>
+      </div>
     </div>
   );
 }
