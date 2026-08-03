@@ -10,7 +10,6 @@ import StockCorrectionForm from "./StockCorrectionForm";
 import ProductEditForm from "./ProductEditForm";
 import LoadingButton from "../Component/LoadingButton";
 
-
 const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:5000/api";
 
 interface Warehouse {
@@ -51,22 +50,70 @@ interface PendingShipment {
   location: string;
   vesselArrivalDate: string | null;
 }
-const DOMAIN_COLORS: Record<string, { bg: string; text: string; ring: string; hex: string }> = {
-  RAN: { bg: "bg-violet-50", text: "text-violet-700", ring: "ring-violet-200", hex: "#7C3AED" },
-  Consumables: { bg: "bg-emerald-50", text: "text-emerald-700", ring: "ring-emerald-200", hex: "#059669" },
-  Energy: { bg: "bg-amber-50", text: "text-amber-700", ring: "ring-amber-200", hex: "#D97706" },
-  Core: { bg: "bg-sky-50", text: "text-sky-700", ring: "ring-sky-200", hex: "#0284C7" },
-  Microwave: { bg: "bg-[#EAF1FC]", text: "text-[#124191]", ring: "ring-blue-200", hex: "#124191" },
+const DOMAIN_COLORS: Record<
+  string,
+  { bg: string; text: string; ring: string; hex: string }
+> = {
+  RAN: {
+    bg: "bg-violet-50",
+    text: "text-violet-700",
+    ring: "ring-violet-200",
+    hex: "#7C3AED",
+  },
+  Consumables: {
+    bg: "bg-emerald-50",
+    text: "text-emerald-700",
+    ring: "ring-emerald-200",
+    hex: "#059669",
+  },
+  Energy: {
+    bg: "bg-amber-50",
+    text: "text-amber-700",
+    ring: "ring-amber-200",
+    hex: "#D97706",
+  },
+  Core: {
+    bg: "bg-sky-50",
+    text: "text-sky-700",
+    ring: "ring-sky-200",
+    hex: "#0284C7",
+  },
+  Microwave: {
+    bg: "bg-[#EAF1FC]",
+    text: "text-[#124191]",
+    ring: "ring-blue-200",
+    hex: "#124191",
+  },
 };
 const domainColor = (d: string) =>
-  DOMAIN_COLORS[d] ?? { bg: "bg-slate-50", text: "text-slate-700", ring: "ring-slate-200", hex: "#64748B" };
+  DOMAIN_COLORS[d] ?? {
+    bg: "bg-slate-50",
+    text: "text-slate-700",
+    ring: "ring-slate-200",
+    hex: "#64748B",
+  };
 
-const ACTIVITY_ICON: Record<string, { icon: string; color: string; bg: string }> = {
-  DELIVERY_CONFIRMED: { icon: "↓", color: "text-emerald-600", bg: "bg-emerald-50" },
-  SHIPMENTS_IMPORTED: { icon: "↓", color: "text-[#124191]", bg: "bg-[#EAF1FC]" },
+const ACTIVITY_ICON: Record<
+  string,
+  { icon: string; color: string; bg: string }
+> = {
+  DELIVERY_CONFIRMED: {
+    icon: "↓",
+    color: "text-emerald-600",
+    bg: "bg-emerald-50",
+  },
+  SHIPMENTS_IMPORTED: {
+    icon: "↓",
+    color: "text-[#124191]",
+    bg: "bg-[#EAF1FC]",
+  },
   SMR_APPROVED: { icon: "↑", color: "text-amber-600", bg: "bg-amber-50" },
   STOCK_LOANED: { icon: "↑", color: "text-amber-600", bg: "bg-amber-50" },
-  STOCK_LOAN_RETURNED: { icon: "↓", color: "text-emerald-600", bg: "bg-emerald-50" },
+  STOCK_LOAN_RETURNED: {
+    icon: "↓",
+    color: "text-emerald-600",
+    bg: "bg-emerald-50",
+  },
   RMA_SHIPPED: { icon: "↑", color: "text-red-600", bg: "bg-red-50" },
   STOCK_CORRECTED: { icon: "⇄", color: "text-slate-600", bg: "bg-slate-100" },
   DEFECT_MARKED: { icon: "⚠", color: "text-red-600", bg: "bg-red-50" },
@@ -77,10 +124,15 @@ function timeAgo(iso: string) {
   const mins = Math.floor(diffMs / 60000);
   if (mins < 60) return `Il y a ${mins} min`;
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `Aujourd'hui, ${new Date(iso).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`;
+  if (hours < 24)
+    return `Aujourd'hui, ${new Date(iso).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`;
   const days = Math.floor(hours / 24);
-  if (days === 1) return `Hier, ${new Date(iso).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`;
-  return new Date(iso).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" });
+  if (days === 1)
+    return `Hier, ${new Date(iso).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`;
+  return new Date(iso).toLocaleDateString("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+  });
 }
 
 export default function WarehousePage() {
@@ -89,7 +141,9 @@ export default function WarehousePage() {
 
   const [showCategoryManager, setShowCategoryManager] = useState(false);
   const [showStockCorrection, setShowStockCorrection] = useState(false);
-  const [selectedWarehouseId, setSelectedWarehouseId] = useState<number | null>(null);
+  const [selectedWarehouseId, setSelectedWarehouseId] = useState<number | null>(
+    null,
+  );
   const [showWithdrawalForm, setShowWithdrawalForm] = useState(false);
   const [editingProductId, setEditingProductId] = useState<number | null>(null);
   const [lines, setLines] = useState<WarehouseAssetLine[] | null>(null);
@@ -99,9 +153,13 @@ export default function WarehousePage() {
 
   // ---------- Filtres (nouveaux) ----------
   const [domainFilter, setDomainFilter] = useState<string>("");
-  const [statusFilter, setStatusFilter] = useState<"" | "good" | "defective">("");
+  const [statusFilter, setStatusFilter] = useState<"" | "good" | "defective">(
+    "",
+  );
 
-  const [pendingShipments, setPendingShipments] = useState<PendingShipment[] | null>(null);
+  const [pendingShipments, setPendingShipments] = useState<
+    PendingShipment[] | null
+  >(null);
   const [reviewShipmentId, setReviewShipmentId] = useState<number | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
 
@@ -127,7 +185,9 @@ export default function WarehousePage() {
       .catch(() => setError(true));
   }, [selectedWarehouseId]);
 
-  useEffect(() => { loadLines(); }, [loadLines]);
+  useEffect(() => {
+    loadLines();
+  }, [loadLines]);
 
   const loadPendingShipments = useCallback(() => {
     if (selectedProjectId == null) return;
@@ -135,26 +195,37 @@ export default function WarehousePage() {
       .then((res) => res.json())
       .then((data: any[]) => {
         setPendingShipments(
-          data.filter((s) => s.status === "Pending").map((s) => ({
-            id: s.id, deliveryNumber: s.deliveryNumber, scope: s.scope,
-            location: s.location, vesselArrivalDate: s.vesselArrivalDate,
-          }))
+          data
+            .filter((s) => s.status === "Pending")
+            .map((s) => ({
+              id: s.id,
+              deliveryNumber: s.deliveryNumber,
+              scope: s.scope,
+              location: s.location,
+              vesselArrivalDate: s.vesselArrivalDate,
+            })),
         );
       })
       .catch(() => setPendingShipments([]));
   }, [selectedProjectId]);
 
-  useEffect(() => { loadPendingShipments(); }, [loadPendingShipments]);
+  useEffect(() => {
+    loadPendingShipments();
+  }, [loadPendingShipments]);
 
   const loadRecentActivity = useCallback(() => {
     if (selectedProjectId == null) return;
-    apiFetch(`${API_BASE}/ActivityLogs/history?projectId=${selectedProjectId}&page=1&pageSize=5`)
+    apiFetch(
+      `${API_BASE}/ActivityLogs/history?projectId=${selectedProjectId}&page=1&pageSize=5`,
+    )
       .then((r) => r.json())
       .then((data) => setRecentActivity(data.items))
       .catch(() => setRecentActivity([]));
   }, [selectedProjectId]);
 
-  useEffect(() => { loadRecentActivity(); }, [loadRecentActivity]);
+  useEffect(() => {
+    loadRecentActivity();
+  }, [loadRecentActivity]);
 
   function showToast(msg: string) {
     setToast(msg);
@@ -172,11 +243,14 @@ export default function WarehousePage() {
   async function updateDefect(assetId: number, value: number, maxQty: number) {
     if (value < 0 || value > maxQty) return;
     try {
-      const res = await apiFetch(`${API_BASE}/PhysicalAssets/${assetId}/defect`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ defectiveQuantity: value }),
-      });
+      const res = await apiFetch(
+        `${API_BASE}/PhysicalAssets/${assetId}/defect`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ defectiveQuantity: value }),
+        },
+      );
       if (!res.ok) throw new Error();
       loadLines();
       showToast("Statut mis à jour");
@@ -201,7 +275,11 @@ export default function WarehousePage() {
       map.set(l.domain, cur);
     });
     return Array.from(map.entries())
-      .map(([domain, stats]) => ({ domain, ...stats, pct: totalQty > 0 ? (stats.qty / totalQty) * 100 : 0 }))
+      .map(([domain, stats]) => ({
+        domain,
+        ...stats,
+        pct: totalQty > 0 ? (stats.qty / totalQty) * 100 : 0,
+      }))
       .sort((a, b) => b.qty - a.qty);
   }, [lines, totalQty]);
 
@@ -210,11 +288,16 @@ export default function WarehousePage() {
     if (!lines) return [];
     return lines.filter((l) => {
       if (domainFilter && l.domain !== domainFilter) return false;
-      if (statusFilter === "defective" && l.defectiveQuantity === 0) return false;
+      if (statusFilter === "defective" && l.defectiveQuantity === 0)
+        return false;
       if (statusFilter === "good" && l.defectiveQuantity > 0) return false;
       if (search.trim()) {
         const q = search.toLowerCase();
-        if (!l.partNumber.toLowerCase().includes(q) && !l.name.toLowerCase().includes(q)) return false;
+        if (
+          !l.partNumber.toLowerCase().includes(q) &&
+          !l.name.toLowerCase().includes(q)
+        )
+          return false;
       }
       return true;
     });
@@ -232,7 +315,10 @@ export default function WarehousePage() {
 
   const activeDomainLabel = domainFilter || "Tous les domaines";
   const activeDomainRefs = filteredLines.length;
-  const activeDomainQty = filteredLines.reduce((a, l) => a + l.totalQuantity, 0);
+  const activeDomainQty = filteredLines.reduce(
+    (a, l) => a + l.totalQuantity,
+    0,
+  );
 
   return (
     <div className="p-6 bg-[#F4F6FA] min-h-full">
@@ -252,40 +338,88 @@ export default function WarehousePage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap w-full md:w-auto">
+          {isElevated && (
           <button
             onClick={() => setShowImportModal(true)}
             className="flex items-center gap-1.5 bg-white border border-slate-200 text-sm font-semibold text-[#0F172A] rounded-lg px-4 py-2.5 hover:border-[#124191] hover:shadow-sm transition-all"
           >
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
-              <path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+              <path
+                d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
             </svg>
             Importer (Excel)
           </button>
-
+          )}
+          {isElevated && (
           <button
             onClick={() => setShowWithdrawalForm(true)}
             disabled={!lines || lines.length === 0}
             className="flex items-center gap-1.5 bg-white border border-slate-200 text-sm font-semibold text-[#0F172A] rounded-lg px-4 py-2.5 hover:border-[#124191] hover:shadow-sm transition-all disabled:opacity-50"
           >
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
-              <path d="M12 21V9m0 12l-4-4m4 4l4-4M4 5h16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+              <path
+                d="M12 21V9m0 12l-4-4m4 4l4-4M4 5h16"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
             </svg>
             Donner à un client
           </button>
-
+          )}
+{isAdmin && (
           <button
             onClick={() => setShowCategoryManager(true)}
             className="flex items-center gap-1.5 bg-white border border-slate-200 text-sm font-semibold text-[#0F172A] rounded-lg px-4 py-2.5 hover:border-[#124191] hover:shadow-sm transition-all"
           >
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
-              <rect x="3" y="3" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.8" />
-              <rect x="14" y="3" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.8" />
-              <rect x="3" y="14" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.8" />
-              <rect x="14" y="14" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.8" />
+              <rect
+                x="3"
+                y="3"
+                width="7"
+                height="7"
+                rx="1.5"
+                stroke="currentColor"
+                strokeWidth="1.8"
+              />
+              <rect
+                x="14"
+                y="3"
+                width="7"
+                height="7"
+                rx="1.5"
+                stroke="currentColor"
+                strokeWidth="1.8"
+              />
+              <rect
+                x="3"
+                y="14"
+                width="7"
+                height="7"
+                rx="1.5"
+                stroke="currentColor"
+                strokeWidth="1.8"
+              />
+              <rect
+                x="14"
+                y="14"
+                width="7"
+                height="7"
+                rx="1.5"
+                stroke="currentColor"
+                strokeWidth="1.8"
+              />
             </svg>
             Catégories
           </button>
+          )}
 
           {isAdmin && (
             <button
@@ -293,7 +427,13 @@ export default function WarehousePage() {
               className="flex items-center gap-1.5 bg-[#F2790B] text-sm font-semibold text-white rounded-lg px-4 py-2.5 hover:bg-[#d96a06] hover:shadow-md transition-all"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
-                <path d="M21 12a9 9 0 11-2.64-6.36M21 4v6h-6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                <path
+                  d="M21 12a9 9 0 11-2.64-6.36M21 4v6h-6"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
               </svg>
               Mettre à jour le stock
             </button>
@@ -302,14 +442,24 @@ export default function WarehousePage() {
       </div>
 
       {/* ---------- Bandeau shipments en attente ---------- */}
-      {pendingShipments && pendingShipments.length > 0 && (
+      
+      { isElevated && pendingShipments && pendingShipments.length > 0 && (
         <div className="mb-5 bg-amber-50 border border-amber-200 rounded-xl overflow-hidden animate-[fadeIn_.3s_ease]">
           <div className="flex items-center gap-2 px-4 py-3 border-b border-amber-200">
-            <svg className="w-4 h-4 text-amber-600 flex-shrink-0" viewBox="0 0 24 24" fill="none">
-              <path d="M12 9v4m0 4h.01M10.3 3.9L2.7 17a2 2 0 001.7 3h15.2a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z" stroke="currentColor" strokeWidth="1.8" />
+            <svg
+              className="w-4 h-4 text-amber-600 flex-shrink-0"
+              viewBox="0 0 24 24"
+              fill="none"
+            >
+              <path
+                d="M12 9v4m0 4h.01M10.3 3.9L2.7 17a2 2 0 001.7 3h15.2a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"
+                stroke="currentColor"
+                strokeWidth="1.8"
+              />
             </svg>
             <span className="text-sm font-semibold text-amber-800">
-              {pendingShipments.length} shipment(s) en attente de confirmation pour ce projet
+              {pendingShipments.length} shipment(s) en attente de confirmation
+              pour ce projet
             </span>
           </div>
           <div className="divide-y divide-amber-100">
@@ -320,10 +470,16 @@ export default function WarehousePage() {
                 className="w-full flex items-center justify-between px-4 py-2.5 text-sm hover:bg-amber-100/60 transition-colors text-left"
               >
                 <span className="flex items-center gap-2">
-                  <span className="font-mono text-[#124191] font-semibold">{s.deliveryNumber}</span>
-                  <span className="text-slate-500">{s.scope} · {s.location}</span>
+                  <span className="font-mono text-[#124191] font-semibold">
+                    {s.deliveryNumber}
+                  </span>
+                  <span className="text-slate-500">
+                    {s.scope} · {s.location}
+                  </span>
                 </span>
-                <span className="text-xs font-semibold text-amber-700">Confirmer la réception →</span>
+                <span className="text-xs font-semibold text-amber-700">
+                  Confirmer la réception →
+                </span>
               </button>
             ))}
           </div>
@@ -332,9 +488,28 @@ export default function WarehousePage() {
 
       {/* ---------- KPI : global + par domaine ---------- */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-5">
-        <KpiCard label="Références" value={totalRefs} accent="text-[#124191]" bg="bg-[#EAF1FC]" icon="box" />
-        <KpiCard label="Qté totale" value={totalQty} accent="text-[#124191]" bg="bg-[#EAF1FC]" icon="stack" />
-        <KpiCard label="Défectueux" value={totalDefect} accent="text-red-600" bg="bg-red-50" icon="alert" danger />
+        <KpiCard
+          label="Références"
+          value={totalRefs}
+          accent="text-[#124191]"
+          bg="bg-[#EAF1FC]"
+          icon="box"
+        />
+        <KpiCard
+          label="Qté totale"
+          value={totalQty}
+          accent="text-[#124191]"
+          bg="bg-[#EAF1FC]"
+          icon="stack"
+        />
+        <KpiCard
+          label="Défectueux"
+          value={totalDefect}
+          accent="text-red-600"
+          bg="bg-red-50"
+          icon="alert"
+          danger
+        />
         {domainStats.slice(0, 4).map((d) => {
           const c = domainColor(d.domain);
           return (
@@ -352,11 +527,26 @@ export default function WarehousePage() {
       </div>
 
       {/* ---------- Recherche + filtres ---------- */}
-      <div className="flex items-center gap-2 mb-5 flex-wrap">
-        <div className="relative flex-1 min-w-[220px]">
-          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" viewBox="0 0 24 24" fill="none">
-            <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="1.8" />
-            <path d="M21 21l-4.3-4.3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 mb-5">
+        <div className="relative flex-1 min-w-0 sm:min-w-[220px]">
+          <svg
+            className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"
+            viewBox="0 0 24 24"
+            fill="none"
+          >
+            <circle
+              cx="11"
+              cy="11"
+              r="7"
+              stroke="currentColor"
+              strokeWidth="1.8"
+            />
+            <path
+              d="M21 21l-4.3-4.3"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+            />
           </svg>
           <input
             value={search}
@@ -366,26 +556,30 @@ export default function WarehousePage() {
           />
         </div>
 
-        <select
-          value={domainFilter}
-          onChange={(e) => setDomainFilter(e.target.value)}
-          className="border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#124191]/30"
-        >
-          <option value="">Toutes les catégories</option>
-          {domainStats.map((d) => (
-            <option key={d.domain} value={d.domain}>{d.domain}</option>
-          ))}
-        </select>
+        <div className="flex gap-2">
+          <select
+            value={domainFilter}
+            onChange={(e) => setDomainFilter(e.target.value)}
+            className="flex-1 sm:flex-none border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#124191]/30"
+          >
+            <option value="">Toutes les catégories</option>
+            {domainStats.map((d) => (
+              <option key={d.domain} value={d.domain}>
+                {d.domain}
+              </option>
+            ))}
+          </select>
 
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value as any)}
-          className="border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#124191]/30"
-        >
-          <option value="">Tous statuts</option>
-          <option value="good">Bon état</option>
-          <option value="defective">Défectueux</option>
-        </select>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as any)}
+            className="border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#124191]/30"
+          >
+            <option value="">Tous statuts</option>
+            <option value="good">Bon état</option>
+            <option value="defective">Défectueux</option>
+          </select>
+        </div>
       </div>
 
       {error ? (
@@ -395,14 +589,19 @@ export default function WarehousePage() {
       ) : !lines ? (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="h-64 bg-white border border-slate-200 rounded-xl animate-pulse" />
+            <div
+              key={i}
+              className="h-64 bg-white border border-slate-200 rounded-xl animate-pulse"
+            />
           ))}
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-[280px_320px_1fr] gap-4">
           {/* ---------- Colonne 1 : Donut inventaire par catégorie ---------- */}
           <div className="bg-white rounded-xl border border-slate-200 p-5">
-            <h3 className="text-sm font-bold text-[#0F172A] mb-4">Inventaire par catégorie</h3>
+            <h3 className="text-sm font-bold text-[#0F172A] mb-4">
+              Inventaire par catégorie
+            </h3>
             <DomainDonut stats={domainStats} total={totalQty} />
             <div className="mt-4 space-y-2">
               {domainStats.map((d) => {
@@ -410,16 +609,27 @@ export default function WarehousePage() {
                 return (
                   <button
                     key={d.domain}
-                    onClick={() => setDomainFilter(domainFilter === d.domain ? "" : d.domain)}
+                    onClick={() =>
+                      setDomainFilter(domainFilter === d.domain ? "" : d.domain)
+                    }
                     className={`w-full flex items-center justify-between text-xs px-2 py-1.5 rounded-lg transition-colors ${
-                      domainFilter === d.domain ? "bg-slate-50 ring-1 " + c.ring : "hover:bg-slate-50"
+                      domainFilter === d.domain
+                        ? "bg-slate-50 ring-1 " + c.ring
+                        : "hover:bg-slate-50"
                     }`}
                   >
                     <span className="flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: c.hex }} />
-                      <span className="text-slate-600 font-medium">{d.domain}</span>
+                      <span
+                        className="w-2 h-2 rounded-full"
+                        style={{ backgroundColor: c.hex }}
+                      />
+                      <span className="text-slate-600 font-medium">
+                        {d.domain}
+                      </span>
                     </span>
-                    <span className="text-slate-400 font-mono">{d.qty.toLocaleString("fr-FR")} ({d.pct.toFixed(1)}%)</span>
+                    <span className="text-slate-400 font-mono">
+                      {d.qty.toLocaleString("fr-FR")} ({d.pct.toFixed(1)}%)
+                    </span>
                   </button>
                 );
               })}
@@ -428,34 +638,57 @@ export default function WarehousePage() {
 
           {/* ---------- Colonne 2 : Activité récente ---------- */}
           <div className="bg-white rounded-xl border border-slate-200 p-5">
-            <h3 className="text-sm font-bold text-[#0F172A] mb-4">Activité récente</h3>
+            <h3 className="text-sm font-bold text-[#0F172A] mb-4">
+              Activité récente
+            </h3>
             {!recentActivity ? (
               <div className="space-y-3">
                 {Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className="h-10 bg-slate-100 rounded-lg animate-pulse" />
+                  <div
+                    key={i}
+                    className="h-10 bg-slate-100 rounded-lg animate-pulse"
+                  />
                 ))}
               </div>
             ) : recentActivity.length === 0 ? (
-              <p className="text-xs text-slate-400 text-center py-6">Aucune activité récente.</p>
+              <p className="text-xs text-slate-400 text-center py-6">
+                Aucune activité récente.
+              </p>
             ) : (
               <div className="space-y-1">
                 {recentActivity.map((a) => {
-                  const cfg = ACTIVITY_ICON[a.type] ?? { icon: "•", color: "text-slate-500", bg: "bg-slate-100" };
+                  const cfg = ACTIVITY_ICON[a.type] ?? {
+                    icon: "•",
+                    color: "text-slate-500",
+                    bg: "bg-slate-100",
+                  };
                   return (
-                    <div key={a.id} className="flex items-start gap-3 py-2.5 border-b border-slate-50 last:border-0">
-                      <span className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${cfg.bg} ${cfg.color} font-bold text-sm`}>
+                    <div
+                      key={a.id}
+                      className="flex items-start gap-3 py-2.5 border-b border-slate-50 last:border-0"
+                    >
+                      <span
+                        className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${cfg.bg} ${cfg.color} font-bold text-sm`}
+                      >
                         {cfg.icon}
                       </span>
                       <div className="min-w-0">
-                        <p className="text-xs text-slate-700 leading-snug line-clamp-2">{a.description}</p>
-                        <p className="text-[10px] text-slate-400 mt-0.5">{timeAgo(a.timestamp)}</p>
+                        <p className="text-xs text-slate-700 leading-snug line-clamp-2">
+                          {a.description}
+                        </p>
+                        <p className="text-[10px] text-slate-400 mt-0.5">
+                          {timeAgo(a.timestamp)}
+                        </p>
                       </div>
                     </div>
                   );
                 })}
               </div>
             )}
-            <a href="/history" className="block text-xs font-semibold text-[#124191] hover:underline mt-3">
+            <a
+              href="/history"
+              className="block text-xs font-semibold text-[#124191] hover:underline mt-3"
+            >
               Voir tout l'historique →
             </a>
           </div>
@@ -463,8 +696,12 @@ export default function WarehousePage() {
           {/* ---------- Colonne 3 : tableau détaillé ---------- */}
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
             <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50">
-              <span className="font-bold text-sm text-[#0F172A]">
-                {activeDomainLabel} <span className="text-slate-400 font-normal">({activeDomainRefs} réf. · {activeDomainQty.toLocaleString("fr-FR")} unités)</span>
+              <span className="font-bold text-sm text-[#0F172A] block truncate">
+                {activeDomainLabel}{" "}
+                <span className="text-slate-400 font-normal text-xs">
+                  ({activeDomainRefs} réf. ·{" "}
+                  {activeDomainQty.toLocaleString("fr-FR")} unités)
+                </span>
               </span>
             </div>
 
@@ -474,34 +711,70 @@ export default function WarehousePage() {
                   Aucun matériel ne correspond à ce filtre.
                 </p>
               ) : (
-                Array.from(filteredGrouped.entries()).map(([materialGroup, groupLines]) => (
-                  <div key={materialGroup}>
-                    <div className="px-5 py-2 bg-slate-50/50 text-[11px] font-semibold text-slate-500 uppercase tracking-wide sticky top-0">
-                      {materialGroup}
-                    </div>
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="text-xs text-slate-400 border-b border-slate-100">
-                          <th className="text-left font-medium px-5 py-2">Code</th>
-                          <th className="text-left font-medium px-5 py-2">Description</th>
-                          <th className="text-right font-medium px-5 py-2">Qté</th>
-                          <th className="text-right font-medium px-5 py-2">Déf.</th>
-                          <th className="text-left font-medium px-5 py-2">Statut</th>
-                        </tr>
-                      </thead>
-                      <tbody className="text-black">
+                Array.from(filteredGrouped.entries()).map(
+                  ([materialGroup, groupLines]) => (
+                    <div key={materialGroup}>
+                      <div className="px-5 py-2 bg-slate-50/50 text-[11px] font-semibold text-slate-500 uppercase tracking-wide sticky top-0">
+                        {materialGroup}
+                      </div>
+                      <table className="w-full text-sm hidden sm:table">
+                        <thead>
+                          <tr className="text-xs text-slate-400 border-b border-slate-100">
+                            <th className="text-left font-medium px-5 py-2">
+                              Code
+                            </th>
+                            <th className="text-left font-medium px-5 py-2">
+                              Description
+                            </th>
+                            <th className="text-right font-medium px-5 py-2">
+                              Qté
+                            </th>
+                            <th className="text-right font-medium px-5 py-2">
+                              Déf.
+                            </th>
+                            <th className="text-left font-medium px-5 py-2">
+                              Statut
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="text-black">
+                          {groupLines.map((line) => (
+                            <MaterialRows
+                              key={line.hardwareProductId}
+                              line={line}
+                              onDefectSave={updateDefect}
+                              onEdit={
+                                isElevated
+                                  ? () =>
+                                      setEditingProductId(
+                                        line.hardwareProductId,
+                                      )
+                                  : undefined
+                              }
+                            />
+                          ))}
+                        </tbody>
+                      </table>
+
+                      {/* Vue cartes empilées — mobile uniquement */}
+                      <div className="sm:hidden divide-y divide-slate-50">
                         {groupLines.map((line) => (
-                          <MaterialRows
+                          <MaterialCard
                             key={line.hardwareProductId}
                             line={line}
                             onDefectSave={updateDefect}
-                            onEdit={isElevated ? () => setEditingProductId(line.hardwareProductId) : undefined}
+                            onEdit={
+                              isElevated
+                                ? () =>
+                                    setEditingProductId(line.hardwareProductId)
+                                : undefined
+                            }
                           />
                         ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ))
+                      </div>
+                    </div>
+                  ),
+                )
               )}
             </div>
           </div>
@@ -516,7 +789,11 @@ export default function WarehousePage() {
 
       {/* ---------- Modales (inchangées) ---------- */}
       {reviewShipmentId != null && (
-        <ShipmentModal shipmentId={reviewShipmentId} onClose={() => setReviewShipmentId(null)} onConfirmed={handleConfirmed} />
+        <ShipmentModal
+          shipmentId={reviewShipmentId}
+          onClose={() => setReviewShipmentId(null)}
+          onConfirmed={handleConfirmed}
+        />
       )}
       {showImportModal && (
         <ImportShipmentsModal
@@ -529,31 +806,56 @@ export default function WarehousePage() {
         />
       )}
       {showCategoryManager && (
-        <CategoryManager onClose={() => { setShowCategoryManager(false); loadLines(); }} />
-      )}
-      {showWithdrawalForm && lines && selectedWarehouseId != null && selectedProjectId != null && (
-        <StockWithdrawalForm
-          warehouseId={selectedWarehouseId}
-          projectId={selectedProjectId}
-          stockLines={lines}
-          onClose={() => setShowWithdrawalForm(false)}
-          onDone={() => { setShowWithdrawalForm(false); loadLines(); loadRecentActivity(); showToast("Matériel donné au client — stock mis à jour"); }}
+        <CategoryManager
+          onClose={() => {
+            setShowCategoryManager(false);
+            loadLines();
+          }}
         />
       )}
-      {showStockCorrection && lines && selectedWarehouseId != null && selectedProjectId != null && (
-        <StockCorrectionForm
-          warehouseId={selectedWarehouseId}
-          projectId={selectedProjectId}
-          stockLines={lines}
-          onClose={() => setShowStockCorrection(false)}
-          onDone={() => { setShowStockCorrection(false); loadLines(); loadRecentActivity(); showToast("Stock mis à jour"); }}
-        />
-      )}
+      {showWithdrawalForm &&
+        lines &&
+        selectedWarehouseId != null &&
+        selectedProjectId != null && (
+          <StockWithdrawalForm
+            warehouseId={selectedWarehouseId}
+            projectId={selectedProjectId}
+            stockLines={lines}
+            onClose={() => setShowWithdrawalForm(false)}
+            onDone={() => {
+              setShowWithdrawalForm(false);
+              loadLines();
+              loadRecentActivity();
+              showToast("Matériel donné au client — stock mis à jour");
+            }}
+          />
+        )}
+      {showStockCorrection &&
+        lines &&
+        selectedWarehouseId != null &&
+        selectedProjectId != null && (
+          <StockCorrectionForm
+            warehouseId={selectedWarehouseId}
+            projectId={selectedProjectId}
+            stockLines={lines}
+            onClose={() => setShowStockCorrection(false)}
+            onDone={() => {
+              setShowStockCorrection(false);
+              loadLines();
+              loadRecentActivity();
+              showToast("Stock mis à jour");
+            }}
+          />
+        )}
       {editingProductId != null && (
         <ProductEditForm
           hardwareProductId={editingProductId}
           onClose={() => setEditingProductId(null)}
-          onSaved={() => { setEditingProductId(null); loadLines(); showToast("Fiche produit mise à jour"); }}
+          onSaved={() => {
+            setEditingProductId(null);
+            loadLines();
+            showToast("Fiche produit mise à jour");
+          }}
         />
       )}
     </div>
@@ -563,39 +865,96 @@ export default function WarehousePage() {
 // ---------- Sous-composants ----------
 
 function KpiCard({
-  label, value, sub, accent, bg, icon, danger,
-}: { label: string; value: number; sub?: string; accent: string; bg: string; icon: string; danger?: boolean }) {
+  label,
+  value,
+  sub,
+  accent,
+  bg,
+  icon,
+  danger,
+}: {
+  label: string;
+  value: number;
+  sub?: string;
+  accent: string;
+  bg: string;
+  icon: string;
+  danger?: boolean;
+}) {
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-4 hover:shadow-sm transition-shadow">
       <div className="flex items-center justify-between mb-2">
-        <span className={`w-8 h-8 rounded-lg ${bg} ${accent} flex items-center justify-center`}>
+        <span
+          className={`w-8 h-8 rounded-lg ${bg} ${accent} flex items-center justify-center`}
+        >
           {icon === "alert" ? (
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 9v4m0 4h.01M10.3 3.9L2.7 17a2 2 0 001.7 3h15.2a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z" stroke="currentColor" strokeWidth="1.8" /></svg>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M12 9v4m0 4h.01M10.3 3.9L2.7 17a2 2 0 001.7 3h15.2a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"
+                stroke="currentColor"
+                strokeWidth="1.8"
+              />
+            </svg>
           ) : icon === "box" ? (
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M3 9.5L12 4l9 5.5V19a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z" stroke="currentColor" strokeWidth="1.8" /></svg>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M3 9.5L12 4l9 5.5V19a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z"
+                stroke="currentColor"
+                strokeWidth="1.8"
+              />
+            </svg>
           ) : icon === "stack" ? (
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
           ) : (
             <span className="w-2 h-2 rounded-full bg-current" />
           )}
         </span>
       </div>
-      <div className={`text-xl font-bold ${danger && value > 0 ? "text-red-600" : "text-[#0F172A]"}`}>
+      <div
+        className={`text-xl font-bold ${danger && value > 0 ? "text-red-600" : "text-[#0F172A]"}`}
+      >
         {value.toLocaleString("fr-FR")}
       </div>
-      <div className="text-xs text-slate-400 mt-0.5">{label}{sub ? ` · ${sub}` : ""}</div>
+      <div className="text-xs text-slate-400 mt-0.5">
+        {label}
+        {sub ? ` · ${sub}` : ""}
+      </div>
     </div>
   );
 }
 
-function DomainDonut({ stats, total }: { stats: { domain: string; qty: number; pct: number }[]; total: number }) {
-  const size = 160, stroke = 22, r = (size - stroke) / 2, c = 2 * Math.PI * r;
+function DomainDonut({
+  stats,
+  total,
+}: {
+  stats: { domain: string; qty: number; pct: number }[];
+  total: number;
+}) {
+  const size = 160,
+    stroke = 22,
+    r = (size - stroke) / 2,
+    c = 2 * Math.PI * r;
   let offset = 0;
 
   return (
     <div className="relative flex items-center justify-center">
       <svg width={size} height={size} className="-rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#F1F5F9" strokeWidth={stroke} />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          stroke="#F1F5F9"
+          strokeWidth={stroke}
+        />
         {stats.map((d) => {
           const dash = (d.pct / 100) * c;
           const circle = (
@@ -618,7 +977,9 @@ function DomainDonut({ stats, total }: { stats: { domain: string; qty: number; p
         })}
       </svg>
       <div className="absolute flex flex-col items-center">
-        <span className="text-lg font-bold text-[#0F172A]">{total.toLocaleString("fr-FR")}</span>
+        <span className="text-lg font-bold text-[#0F172A]">
+          {total.toLocaleString("fr-FR")}
+        </span>
         <span className="text-[10px] text-slate-400">Total articles</span>
       </div>
     </div>
@@ -1004,6 +1365,7 @@ function ImportShipmentsModal({
       className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4 text-black"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
+      
       <div className="bg-white rounded-xl w-full max-w-md p-6 shadow-2xl">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-base font-bold text-[#0F172A]">
@@ -1236,5 +1598,121 @@ function MaterialRows({
           </tr>
         ))}
     </>
+  );
+}
+
+function MaterialCard({
+  line,
+  onDefectSave,
+  onEdit,
+}: {
+  line: WarehouseAssetLine;
+  onDefectSave: (assetId: number, value: number, maxQty: number) => void;
+  onEdit?: () => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const hasMultipleUnits = line.units.length > 1;
+
+  if (!hasMultipleUnits) {
+    const u = line.units[0];
+    if (!u) return null;
+    return (
+      <div className="px-4 py-3">
+        <div className="flex items-center justify-between mb-1">
+          <span className="font-mono text-xs text-[#124191] font-semibold">
+            {line.partNumber}
+            {line.isSerialized && (
+              <span className="text-slate-400 font-normal">
+                {" "}
+                · {u.serialNumber}
+              </span>
+            )}
+          </span>
+          <StatusPill defective={u.defectiveQuantity > 0} />
+        </div>
+        <p className="text-xs text-slate-600 mb-2">{line.name}</p>
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-bold text-[#0F172A]">
+            {u.quantity}{" "}
+            <span className="text-xs font-normal text-slate-400">en stock</span>
+          </span>
+          <div className="flex items-center gap-2">
+            <DefectInput
+              value={u.defectiveQuantity}
+              max={u.quantity}
+              onSave={(v) => onDefectSave(u.id, v, u.quantity)}
+            />
+            {onEdit && (
+              <button
+                onClick={onEdit}
+                className="text-[11px] text-[#124191] hover:underline whitespace-nowrap"
+              >
+                Modifier
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <button
+        onClick={() => setExpanded((e) => !e)}
+        className="w-full text-left px-4 py-3"
+      >
+        <div className="flex items-center justify-between mb-1">
+          <span className="font-mono text-xs text-[#124191] font-semibold">
+            <span
+              className={`inline-block mr-1 text-slate-400 transition-transform ${expanded ? "rotate-90" : ""}`}
+            >
+              ▸
+            </span>
+            {line.partNumber}{" "}
+            <span className="text-slate-400 font-normal">
+              · {line.units.length} unités
+            </span>
+          </span>
+          <StatusPill defective={line.defectiveQuantity > 0} />
+        </div>
+        <p className="text-xs text-slate-600 mb-1">{line.name}</p>
+        <div className="flex items-center gap-3 text-sm">
+          <span className="font-bold text-[#0F172A]">
+            {line.totalQuantity}{" "}
+            <span className="text-xs font-normal text-slate-400">total</span>
+          </span>
+          {line.defectiveQuantity > 0 && (
+            <span className="font-mono text-red-600 text-xs">
+              {line.defectiveQuantity} défectueux
+            </span>
+          )}
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="bg-slate-50/40 divide-y divide-slate-100">
+          {line.units.map((u) => (
+            <div
+              key={u.id}
+              className="px-4 py-2.5 pl-8 flex items-center justify-between"
+            >
+              <span className="font-mono text-xs text-slate-500">
+                {line.isSerialized ? u.serialNumber : `Lot ${u.serialNumber}`}
+                <span className="ml-2 text-slate-400">· {u.quantity}</span>
+              </span>
+              <div className="flex items-center gap-2">
+                <DefectInput
+                  value={u.defectiveQuantity}
+                  max={u.quantity}
+                  onSave={(v) => onDefectSave(u.id, v, u.quantity)}
+                />
+                <StatusPill defective={u.defectiveQuantity > 0} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

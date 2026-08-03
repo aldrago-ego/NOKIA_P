@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
-import * as XLSX from 'xlsx';
-import { apiFetch } from '../apiFetch';
-import LoadingButton from '../Component/LoadingButton';
-import { useProject } from './project';
+import React, { useEffect, useState } from "react";
+import * as XLSX from "xlsx";
+import { apiFetch } from "../apiFetch";
+import LoadingButton from "../Component/LoadingButton";
+import { useProject } from "./project";
+import { useAuth } from "./authContext";
 
-const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:5000/api';
+const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:5000/api";
 
 interface ShipmentListItem {
   id: number;
@@ -18,17 +19,32 @@ interface ShipmentListItem {
   containersCount: number | null;
   waybill: string | null;
   isApproved: boolean;
-  status: 'Pending' | 'Delivered';
+  status: "Pending" | "Delivered";
 }
 
 interface ShipmentDetail extends ShipmentListItem {
   approvedBy: string | null;
   approvalDate: string | null;
-  materials: { id: number; partNumber: string; name: string; quantity: number; defectiveQuantity: number; serialNumber: string; }[];
-  expectedMaterials: { partNumber: string; description: string; expectedQuantity: number }[]; // NOUVEAU
+  materials: {
+    id: number;
+    partNumber: string;
+    name: string;
+    quantity: number;
+    defectiveQuantity: number;
+    serialNumber: string;
+  }[];
+  expectedMaterials: {
+    partNumber: string;
+    description: string;
+    expectedQuantity: number;
+  }[]; // NOUVEAU
 }
 
-export default function ShipmentDetailPanel({ projectId }: { projectId: number }) {
+export default function ShipmentDetailPanel({
+  projectId,
+}: {
+  projectId: number;
+}) {
   const [shipments, setShipments] = useState<ShipmentListItem[] | null>(null);
   const [error, setError] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -37,10 +53,12 @@ export default function ShipmentDetailPanel({ projectId }: { projectId: number }
     setShipments(null);
     setError(false);
     const controller = new AbortController();
-    apiFetch(`${API_BASE}/DeliveryNotes?projectId=${projectId}`, { signal: controller.signal })
+    apiFetch(`${API_BASE}/DeliveryNotes?projectId=${projectId}`, {
+      signal: controller.signal,
+    })
       .then((res) => res.json())
       .then(setShipments)
-      .catch((err) => err.name !== 'AbortError' && setError(true));
+      .catch((err) => err.name !== "AbortError" && setError(true));
     return () => controller.abort();
   }, [projectId]);
 
@@ -53,20 +71,25 @@ export default function ShipmentDetailPanel({ projectId }: { projectId: number }
 
   return (
     <>
-    <div className="flex justify-end mb-2">
-  <button
-    onClick={() => shipments && exportShipmentsToExcel(shipments, projectId)}
-    disabled={!shipments || shipments.length === 0}
-    className="text-xs font-semibold text-[#124191] hover:underline disabled:opacity-40"
-  >
-    Exporter en Excel
-  </button>
-</div>
+      <div className="flex justify-end mb-2">
+        <button
+          onClick={() =>
+            shipments && exportShipmentsToExcel(shipments, projectId)
+          }
+          disabled={!shipments || shipments.length === 0}
+          className="text-xs font-semibold text-[#124191] hover:underline disabled:opacity-40"
+        >
+          Exporter en Excel
+        </button>
+      </div>
       <div className="table-wrap text-black">
         {!shipments ? (
           <div className="space-y-2 p-1">
             {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="h-11 bg-slate-100 rounded animate-pulse" />
+              <div
+                key={i}
+                className="h-11 bg-slate-100 rounded animate-pulse"
+              />
             ))}
           </div>
         ) : error ? (
@@ -78,50 +101,60 @@ export default function ShipmentDetailPanel({ projectId }: { projectId: number }
             Aucun shipment enregistré pour ce projet.
           </p>
         ) : (
-          <table className="w-full text-black">
-            <thead>
-              <tr className="text-xs text-slate-400 uppercase tracking-wide border-b border-slate-100">
-                <th className="text-left font-medium px-4 py-2.5">#</th>
-                <th className="text-left font-medium px-4 py-2.5">Scope</th>
-                <th className="text-left font-medium px-4 py-2.5">Location</th>
-                <th className="text-left font-medium px-4 py-2.5">MOT</th>
-                <th className="text-left font-medium px-4 py-2.5">Arrivée</th>
-                <th className="text-left font-medium px-4 py-2.5">Invoice</th>
-                <th className="text-left font-medium px-4 py-2.5">Statut</th>
-              </tr>
-            </thead>
-            <tbody>
-              {shipments.map((s) => (
-                <tr
-                  key={s.id}
-                  onClick={() => setSelectedId(s.id)}
-                  className="border-b border-slate-50 cursor-pointer hover:bg-[#EAF1FC] transition-colors"
-                >
-                  <td className="px-4 py-2.5 font-mono text-[#124191]">{s.deliveryNumber}</td>
-                  <td className="px-4 py-2.5">{s.scope}</td>
-                  <td className="px-4 py-2.5">{s.location}</td>
-                  <td className="px-4 py-2.5 text-slate-500">{s.mot}</td>
-                  <td className="px-4 py-2.5 font-mono text-slate-500">
-                    {s.vesselArrivalDate
-                      ? new Date(s.vesselArrivalDate).toLocaleDateString('fr-FR')
-                      : '—'}
-                  </td>
-                  <td className="px-4 py-2.5 font-mono">{s.invoiceNumber ?? '—'}</td>
-                  <td className="px-4 py-2.5">
-                    {s.status === 'Delivered' ? (
-                      <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
-                        Livré
-                      </span>
-                    ) : (
-                      <span className="text-xs font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">
-                        En attente
-                      </span>
-                    )}
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-black min-w-[600px]">
+              <thead>
+                <tr className="text-xs text-slate-400 uppercase tracking-wide border-b border-slate-100">
+                  <th className="text-left font-medium px-4 py-2.5">#</th>
+                  <th className="text-left font-medium px-4 py-2.5">Scope</th>
+                  <th className="text-left font-medium px-4 py-2.5">
+                    Location
+                  </th>
+                  <th className="text-left font-medium px-4 py-2.5">MOT</th>
+                  <th className="text-left font-medium px-4 py-2.5">Arrivée</th>
+                  <th className="text-left font-medium px-4 py-2.5">Invoice</th>
+                  <th className="text-left font-medium px-4 py-2.5">Statut</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {shipments.map((s) => (
+                  <tr
+                    key={s.id}
+                    onClick={() => setSelectedId(s.id)}
+                    className="border-b border-slate-50 cursor-pointer hover:bg-[#EAF1FC] transition-colors"
+                  >
+                    <td className="px-4 py-2.5 font-mono text-[#124191]">
+                      {s.deliveryNumber}
+                    </td>
+                    <td className="px-4 py-2.5">{s.scope}</td>
+                    <td className="px-4 py-2.5">{s.location}</td>
+                    <td className="px-4 py-2.5 text-slate-500">{s.mot}</td>
+                    <td className="px-4 py-2.5 font-mono text-slate-500">
+                      {s.vesselArrivalDate
+                        ? new Date(s.vesselArrivalDate).toLocaleDateString(
+                            "fr-FR",
+                          )
+                        : "—"}
+                    </td>
+                    <td className="px-4 py-2.5 font-mono">
+                      {s.invoiceNumber ?? "—"}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      {s.status === "Delivered" ? (
+                        <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+                          Livré
+                        </span>
+                      ) : (
+                        <span className="text-xs font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">
+                          En attente
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
@@ -138,24 +171,34 @@ export default function ShipmentDetailPanel({ projectId }: { projectId: number }
     </>
   );
 }
-function exportShipmentsToExcel(shipments: ShipmentListItem[], projectId: number) {
+function exportShipmentsToExcel(
+  shipments: ShipmentListItem[],
+  projectId: number,
+) {
   const rows = shipments.map((s) => ({
-    'N° Shipment': s.deliveryNumber,
-    'Scope': s.scope,
-    'Location': s.location,
-    'MOT': s.mot,
-    'Date départ': s.vesselDepartureDate ? new Date(s.vesselDepartureDate).toLocaleDateString('fr-FR') : '',
-    'Date arrivée': s.vesselArrivalDate ? new Date(s.vesselArrivalDate).toLocaleDateString('fr-FR') : '',
-    'Invoice': s.invoiceNumber ?? '',
-    'Conteneurs': s.containersCount ?? '',
-    'Waybill': s.waybill ?? '',
-    'Statut': s.status === 'Delivered' ? 'Livré' : 'En attente',
+    "N° Shipment": s.deliveryNumber,
+    Scope: s.scope,
+    Location: s.location,
+    MOT: s.mot,
+    "Date départ": s.vesselDepartureDate
+      ? new Date(s.vesselDepartureDate).toLocaleDateString("fr-FR")
+      : "",
+    "Date arrivée": s.vesselArrivalDate
+      ? new Date(s.vesselArrivalDate).toLocaleDateString("fr-FR")
+      : "",
+    Invoice: s.invoiceNumber ?? "",
+    Conteneurs: s.containersCount ?? "",
+    Waybill: s.waybill ?? "",
+    Statut: s.status === "Delivered" ? "Livré" : "En attente",
   }));
 
   const ws = XLSX.utils.json_to_sheet(rows);
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Shipments');
-  XLSX.writeFile(wb, `shipments-projet${projectId}-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  XLSX.utils.book_append_sheet(wb, ws, "Shipments");
+  XLSX.writeFile(
+    wb,
+    `shipments-projet${projectId}-${new Date().toISOString().slice(0, 10)}.xlsx`,
+  );
 }
 
 // =========================================================
@@ -170,6 +213,7 @@ export function ShipmentModal({
   onClose: () => void;
   onConfirmed: () => void;
 }) {
+  const { isElevated } = useAuth();
   const [shipment, setShipment] = useState<ShipmentDetail | null>(null);
   const [error, setError] = useState(false);
 
@@ -192,7 +236,7 @@ export function ShipmentModal({
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 sticky top-0 bg-white">
           <div>
             <h3 className="text-base font-bold text-[#0F172A]">
-              Shipment {shipment?.deliveryNumber ?? '…'}
+              Shipment {shipment?.deliveryNumber ?? "…"}
             </h3>
             {shipment && (
               <p className="text-xs text-slate-400 font-mono mt-0.5">
@@ -200,52 +244,86 @@ export function ShipmentModal({
               </p>
             )}
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+          <button
+            onClick={onClose}
+            className="text-slate-400 hover:text-slate-600"
+          >
             ✕
           </button>
         </div>
 
         <div className="p-6">
           {error ? (
-            <p className="text-sm text-red-500">Impossible de charger ce shipment.</p>
+            <p className="text-sm text-red-500">
+              Impossible de charger ce shipment.
+            </p>
           ) : !shipment ? (
             <div className="space-y-2">
               {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="h-6 bg-slate-100 rounded animate-pulse" />
+                <div
+                  key={i}
+                  className="h-6 bg-slate-100 rounded animate-pulse"
+                />
               ))}
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 text-sm">
                 <Field label="Mode de transport" value={shipment.mot} />
-                <Field label="Nb. conteneurs" value={shipment.containersCount?.toString() ?? '—'} />
+                <Field
+                  label="Nb. conteneurs"
+                  value={shipment.containersCount?.toString() ?? "—"}
+                />
                 <Field
                   label="Date de départ"
                   value={
                     shipment.vesselDepartureDate
-                      ? new Date(shipment.vesselDepartureDate).toLocaleDateString('fr-FR')
-                      : '—'
+                      ? new Date(
+                          shipment.vesselDepartureDate,
+                        ).toLocaleDateString("fr-FR")
+                      : "—"
                   }
                 />
                 <Field
                   label="Date d'arrivée"
                   value={
                     shipment.vesselArrivalDate
-                      ? new Date(shipment.vesselArrivalDate).toLocaleDateString('fr-FR')
-                      : '—'
+                      ? new Date(shipment.vesselArrivalDate).toLocaleDateString(
+                          "fr-FR",
+                        )
+                      : "—"
                   }
                 />
-                <Field label="N° facture" value={shipment.invoiceNumber ?? '—'} mono />
-                <Field label="Sea waybill n°" value={shipment.waybill ?? '—'} mono />
+                <Field
+                  label="N° facture"
+                  value={shipment.invoiceNumber ?? "—"}
+                  mono
+                />
+                <Field
+                  label="Sea waybill n°"
+                  value={shipment.waybill ?? "—"}
+                  mono
+                />
               </div>
-              {shipment.status === 'Pending' && (
-  <CancelShipmentButton shipment={shipment} onCancelled={onConfirmed} />
-)}
-
-              {shipment.status === 'Delivered' ? (
+              
+              {shipment.status === "Pending" && isElevated && (
+                <CancelShipmentButton
+                  shipment={shipment}
+                  onCancelled={onConfirmed}
+                />
+              )}
+              {shipment.status === "Delivered" ? (
                 <DeliveredMaterialsTable shipment={shipment} />
+              ) : isElevated ? (
+                <ConfirmDeliveryForm
+                  shipment={shipment}
+                  onConfirmed={onConfirmed}
+                />
               ) : (
-                <ConfirmDeliveryForm shipment={shipment} onConfirmed={onConfirmed} />
+                <p className="text-sm text-slate-400 italic bg-slate-50 border border-slate-200 rounded-lg px-4 py-3">
+                  Ce shipment est en attente de confirmation par un
+                  administrateur.
+                </p>
               )}
             </>
           )}
@@ -255,13 +333,23 @@ export function ShipmentModal({
   );
 }
 
-function Field({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+function Field({
+  label,
+  value,
+  mono,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
   return (
     <div>
       <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">
         {label}
       </label>
-      <div className={`font-semibold text-[#0F172A] ${mono ? 'font-mono text-sm' : ''}`}>
+      <div
+        className={`font-semibold text-[#0F172A] ${mono ? "font-mono text-sm" : ""}`}
+      >
         {value}
       </div>
     </div>
@@ -272,7 +360,16 @@ function DeliveredMaterialsTable({ shipment }: { shipment: ShipmentDetail }) {
   // Regroupe les lignes par code matériel — la donnée brute reste 1 ligne par
   // numéro de série (utile en base), mais l'affichage montre la quantité totale.
   const grouped = React.useMemo(() => {
-    const map = new Map<string, { partNumber: string; name: string; quantity: number; defectiveQuantity: number; count: number }>();
+    const map = new Map<
+      string,
+      {
+        partNumber: string;
+        name: string;
+        quantity: number;
+        defectiveQuantity: number;
+        count: number;
+      }
+    >();
     shipment.materials.forEach((m) => {
       const existing = map.get(m.partNumber);
       if (existing) {
@@ -297,37 +394,43 @@ function DeliveredMaterialsTable({ shipment }: { shipment: ShipmentDetail }) {
       <h4 className="text-sm font-semibold text-[#0F172A] mb-3 flex items-center gap-2 text-black">
         Matériel réceptionné
         <span className="text-xs font-normal text-slate-400">
-          confirmé par {shipment.approvedBy} le{' '}
-          {shipment.approvalDate && new Date(shipment.approvalDate).toLocaleDateString('fr-FR')}
+          confirmé par {shipment.approvedBy} le{" "}
+          {shipment.approvalDate &&
+            new Date(shipment.approvalDate).toLocaleDateString("fr-FR")}
         </span>
       </h4>
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-xs text-slate-400 uppercase tracking-wide border-b border-slate-100">
-            <th className="text-left font-medium py-2">Code</th>
-            <th className="text-left font-medium py-2">Description</th>
-            <th className="text-right font-medium py-2">Qté</th>
-            <th className="text-right font-medium py-2">Défectueux</th>
-          </tr>
-        </thead>
-        <tbody className="text-[#0F172A]">
-          {grouped.map((m) => (
-            <tr key={m.partNumber} className="border-b border-slate-50">
-              <td className="py-2 font-mono text-[#124191]">
-                {m.partNumber}
-                {m.count > 1 && (
-                  <span className="text-slate-400 font-sans"> · {m.count} unités</span>
-                )}
-              </td>
-              <td className="py-2">{m.name}</td>
-              <td className="py-2 text-right font-mono">{m.quantity}</td>
-              <td className="py-2 text-right font-mono text-red-600">
-                {m.defectiveQuantity || '—'}
-              </td>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm min-w-[420px]">
+          <thead>
+            <tr className="text-xs text-slate-400 uppercase tracking-wide border-b border-slate-100">
+              <th className="text-left font-medium py-2">Code</th>
+              <th className="text-left font-medium py-2">Description</th>
+              <th className="text-right font-medium py-2">Qté</th>
+              <th className="text-right font-medium py-2">Défectueux</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="text-[#0F172A]">
+            {grouped.map((m) => (
+              <tr key={m.partNumber} className="border-b border-slate-50">
+                <td className="py-2 font-mono text-[#124191]">
+                  {m.partNumber}
+                  {m.count > 1 && (
+                    <span className="text-slate-400 font-sans">
+                      {" "}
+                      · {m.count} unités
+                    </span>
+                  )}
+                </td>
+                <td className="py-2">{m.name}</td>
+                <td className="py-2 text-right font-mono">{m.quantity}</td>
+                <td className="py-2 text-right font-mono text-red-600">
+                  {m.defectiveQuantity || "—"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -349,19 +452,19 @@ interface AssetLine {
 }
 
 const EMPTY_LINE: AssetLine = {
-  partNumber: '',
-  productName: '',
-  materialGroup: '',
+  partNumber: "",
+  productName: "",
+  materialGroup: "",
   isNewProduct: false,
-  domain: 'RAN',
+  domain: "RAN",
   isSerialized: true,
   expectedQty: 0,
   receivedQty: 0,
-  scannedSerial: '',
+  scannedSerial: "",
   isManuallyCounted: false,
 };
 
-const DOMAINS = ['RAN', 'Microwave', 'Energy', 'Core', 'Consumables'];
+const DOMAINS = ["RAN", "Microwave", "Energy", "Core", "Consumables"];
 
 function ConfirmDeliveryForm({
   shipment,
@@ -370,24 +473,27 @@ function ConfirmDeliveryForm({
   shipment: ShipmentDetail;
   onConfirmed: () => void;
 }) {
-  const [supervisorName, setSupervisorName] = useState('');
+  const { userName } = useAuth();
+  const supervisorName = userName ?? "";
   const [lines, setLines] = useState<AssetLine[]>(() => {
-  if (shipment.expectedMaterials && shipment.expectedMaterials.length > 0) {
-    return shipment.expectedMaterials.map((m) => ({
-      ...EMPTY_LINE,
-      partNumber: m.partNumber,
-      productName: m.description,
-      expectedQty: m.expectedQuantity,
-      receivedQty: m.expectedQuantity, // suppose reçu conforme par défaut ; l'admin ajuste si écart
-    }));
-  }
-  return [{ ...EMPTY_LINE }];
-});
+    if (shipment.expectedMaterials && shipment.expectedMaterials.length > 0) {
+      return shipment.expectedMaterials.map((m) => ({
+        ...EMPTY_LINE,
+        partNumber: m.partNumber,
+        productName: m.description,
+        expectedQty: m.expectedQuantity,
+        receivedQty: m.expectedQuantity, // suppose reçu conforme par défaut ; l'admin ajuste si écart
+      }));
+    }
+    return [{ ...EMPTY_LINE }];
+  });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { selectedProjectId } = useProject();
   function updateLine(idx: number, patch: Partial<AssetLine>) {
-    setLines((prev) => prev.map((l, i) => (i === idx ? { ...l, ...patch } : l)));
+    setLines((prev) =>
+      prev.map((l, i) => (i === idx ? { ...l, ...patch } : l)),
+    );
   }
   function addLine() {
     setLines((prev) => [...prev, { ...EMPTY_LINE }]);
@@ -399,23 +505,23 @@ function ConfirmDeliveryForm({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!supervisorName.trim()) {
-      setError('Le nom du superviseur est requis.');
+      setError("Le nom du superviseur est requis.");
       return;
     }
     if (lines.length === 0 || lines.some((l) => !l.partNumber.trim())) {
-      setError('Chaque ligne doit avoir un code matériel.');
+      setError("Chaque ligne doit avoir un code matériel.");
       return;
     }
     setSubmitting(true);
     setError(null);
     try {
       const res = await apiFetch(`${API_BASE}/Deliveries/approve-direct`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           projectId: selectedProjectId,
           deliveryNumber: shipment.deliveryNumber,
-          purchaseOrder: '',
+          purchaseOrder: "",
           supervisorName,
           verifiedAssets: lines.map((l) => ({
             partNumber: l.partNumber,
@@ -432,11 +538,11 @@ function ConfirmDeliveryForm({
       });
       if (!res.ok) {
         const text = await res.text();
-        throw new Error(text || 'Échec de la confirmation.');
+        throw new Error(text || "Échec de la confirmation.");
       }
       onConfirmed();
     } catch (err: any) {
-      setError(err.message ?? 'Échec de la confirmation.');
+      setError(err.message ?? "Échec de la confirmation.");
     } finally {
       setSubmitting(false);
     }
@@ -445,8 +551,8 @@ function ConfirmDeliveryForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-4 text-black">
       <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-lg px-3 py-2 mb-4">
-        Ce shipment est en attente — confirmez ce qui a été réellement reçu pour l'injecter en
-        stock.
+        Ce shipment est en attente — confirmez ce qui a été réellement reçu pour
+        l'injecter en stock.
       </div>
 
       {error && (
@@ -457,20 +563,22 @@ function ConfirmDeliveryForm({
 
       <div className="mb-4 text-black">
         <label className="block text-xs font-semibold text-slate-500 mb-1.5">
-          Nom du superviseur
+          Confirmé par
         </label>
-        <input
-          value={supervisorName}
-          onChange={(e) => setSupervisorName(e.target.value)}
-          placeholder="supervisor"
-          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#124191]/30 focus:border-[#124191]"
-        />
+        <div className="w-full border border-slate-200 bg-slate-50 rounded-lg px-3 py-2 text-sm text-slate-700 font-semibold">
+          {supervisorName}
+        </div>
       </div>
 
-      <h4 className="text-sm font-semibold text-[#0F172A] mb-2 text-black">Matériel réceptionné</h4>
+      <h4 className="text-sm font-semibold text-[#0F172A] mb-2 text-black">
+        Matériel réceptionné
+      </h4>
       <div className="space-y-3 mb-3">
         {lines.map((line, idx) => (
-          <div key={idx} className="border border-slate-200 rounded-lg p-3 relative">
+          <div
+            key={idx}
+            className="border border-slate-200 rounded-lg p-3 relative"
+          >
             {lines.length > 1 && (
               <button
                 type="button"
@@ -484,13 +592,17 @@ function ConfirmDeliveryForm({
               <input
                 placeholder="Code matériel (Part Number)"
                 value={line.partNumber}
-                onChange={(e) => updateLine(idx, { partNumber: e.target.value })}
+                onChange={(e) =>
+                  updateLine(idx, { partNumber: e.target.value })
+                }
                 className="border border-slate-200 rounded-md px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-[#124191]"
               />
               <input
                 placeholder="Description"
                 value={line.productName}
-                onChange={(e) => updateLine(idx, { productName: e.target.value })}
+                onChange={(e) =>
+                  updateLine(idx, { productName: e.target.value })
+                }
                 className="border border-slate-200 rounded-md px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#124191]"
               />
             </div>
@@ -499,21 +611,31 @@ function ConfirmDeliveryForm({
               <input
                 type="number"
                 placeholder="Qté attendue"
-                value={line.expectedQty || ''}
-                onChange={(e) => updateLine(idx, { expectedQty: parseInt(e.target.value) || 0 })}
+                value={line.expectedQty || ""}
+                onChange={(e) =>
+                  updateLine(idx, {
+                    expectedQty: parseInt(e.target.value) || 0,
+                  })
+                }
                 className="border border-slate-200 rounded-md px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-[#124191]"
               />
               <input
                 type="number"
                 placeholder="Qté reçue"
-                value={line.receivedQty || ''}
-                onChange={(e) => updateLine(idx, { receivedQty: parseInt(e.target.value) || 0 })}
+                value={line.receivedQty || ""}
+                onChange={(e) =>
+                  updateLine(idx, {
+                    receivedQty: parseInt(e.target.value) || 0,
+                  })
+                }
                 className="border border-slate-200 rounded-md px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-[#124191]"
               />
               <input
                 placeholder="N° série scanné (optionnel)"
                 value={line.scannedSerial}
-                onChange={(e) => updateLine(idx, { scannedSerial: e.target.value })}
+                onChange={(e) =>
+                  updateLine(idx, { scannedSerial: e.target.value })
+                }
                 className="border border-slate-200 rounded-md px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-[#124191]"
               />
             </div>
@@ -523,7 +645,9 @@ function ConfirmDeliveryForm({
                 <input
                   type="checkbox"
                   checked={line.isManuallyCounted}
-                  onChange={(e) => updateLine(idx, { isManuallyCounted: e.target.checked })}
+                  onChange={(e) =>
+                    updateLine(idx, { isManuallyCounted: e.target.checked })
+                  }
                 />
                 Compté manuellement
               </label>
@@ -531,7 +655,9 @@ function ConfirmDeliveryForm({
                 <input
                   type="checkbox"
                   checked={line.isNewProduct}
-                  onChange={(e) => updateLine(idx, { isNewProduct: e.target.checked })}
+                  onChange={(e) =>
+                    updateLine(idx, { isNewProduct: e.target.checked })
+                  }
                 />
                 Nouvelle référence (pas encore au catalogue)
               </label>
@@ -540,10 +666,14 @@ function ConfirmDeliveryForm({
             {line.isNewProduct && (
               <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
                 <div>
-                  <label className="block text-[10px] text-slate-400 mb-1">Domaine</label>
+                  <label className="block text-[10px] text-slate-400 mb-1">
+                    Domaine
+                  </label>
                   <select
                     value={line.domain}
-                    onChange={(e) => updateLine(idx, { domain: e.target.value })}
+                    onChange={(e) =>
+                      updateLine(idx, { domain: e.target.value })
+                    }
                     className="w-full border border-slate-200 rounded-md px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#124191]"
                   >
                     {DOMAINS.map((d) => (
@@ -554,10 +684,14 @@ function ConfirmDeliveryForm({
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[10px] text-slate-400 mb-1">Groupe matériel</label>
+                  <label className="block text-[10px] text-slate-400 mb-1">
+                    Groupe matériel
+                  </label>
                   <input
                     value={line.materialGroup}
-                    onChange={(e) => updateLine(idx, { materialGroup: e.target.value })}
+                    onChange={(e) =>
+                      updateLine(idx, { materialGroup: e.target.value })
+                    }
                     placeholder="ex : BTS Hardware"
                     className="w-full border border-slate-200 rounded-md px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#124191]"
                   />
@@ -566,9 +700,12 @@ function ConfirmDeliveryForm({
                   <input
                     type="checkbox"
                     checked={line.isSerialized}
-                    onChange={(e) => updateLine(idx, { isSerialized: e.target.checked })}
+                    onChange={(e) =>
+                      updateLine(idx, { isSerialized: e.target.checked })
+                    }
                   />
-                  Matériel sérialisé (1 unité = 1 numéro de série ; décocher pour un lot/consommable)
+                  Matériel sérialisé (1 unité = 1 numéro de série ; décocher
+                  pour un lot/consommable)
                 </label>
               </div>
             )}
@@ -592,7 +729,7 @@ function ConfirmDeliveryForm({
           disabled={submitting}
           className="px-5 py-2.5 text-sm font-semibold text-white bg-[#124191] rounded-lg hover:bg-[#0d3373] transition-colors disabled:opacity-60"
         >
-          {submitting ? 'Confirmation…' : 'Confirmer l’arrivée'}
+          {submitting ? "Confirmation…" : "Confirmer l’arrivée"}
         </LoadingButton>
       </div>
     </form>
@@ -614,7 +751,9 @@ function CancelShipmentButton({
     setBusy(true);
     setError(null);
     try {
-      const res = await apiFetch(`${API_BASE}/DeliveryNotes/${shipment.id}`, { method: 'DELETE' });
+      const res = await apiFetch(`${API_BASE}/DeliveryNotes/${shipment.id}`, {
+        method: "DELETE",
+      });
       if (!res.ok) throw new Error(await res.text());
       onCancelled();
     } catch (err: any) {
@@ -637,7 +776,9 @@ function CancelShipmentButton({
   return (
     <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 mb-4">
       <p className="text-sm text-red-700 mb-2">
-        Confirmer l'annulation du shipment <strong>{shipment.deliveryNumber}</strong> ? Cette action est définitive.
+        Confirmer l'annulation du shipment{" "}
+        <strong>{shipment.deliveryNumber}</strong> ? Cette action est
+        définitive.
       </p>
       {error && <p className="text-xs text-red-600 mb-2">{error}</p>}
       <div className="flex gap-2">
@@ -646,7 +787,7 @@ function CancelShipmentButton({
           disabled={busy}
           className="px-3 py-1.5 text-xs font-semibold text-white bg-red-600 rounded-md hover:bg-red-700 disabled:opacity-60"
         >
-          {busy ? 'Annulation…' : 'Oui, annuler'}
+          {busy ? "Annulation…" : "Oui, annuler"}
         </button>
         <button
           onClick={() => setConfirming(false)}

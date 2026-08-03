@@ -148,11 +148,11 @@ export default function StockCorrectionForm({
 
                 {it.isNew ? (
                   <>
-                    <div className="grid grid-cols-2 gap-2 mb-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
                       <input value={it.partNumber} onChange={(e) => update(idx, { partNumber: e.target.value })} placeholder="Code matériel" className="border border-slate-200 rounded-md px-2.5 py-1.5 text-xs font-mono" />
                       <input value={it.description} onChange={(e) => update(idx, { description: e.target.value })} placeholder="Description" className="border border-slate-200 rounded-md px-2.5 py-1.5 text-xs" />
                     </div>
-                    <div className="grid grid-cols-2 gap-2 mb-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
                       <select value={it.domain} onChange={(e) => update(idx, { domain: e.target.value })} className="border border-slate-200 rounded-md px-2.5 py-1.5 text-xs">
                         {DOMAINS.map((d) => <option key={d} value={d}>{d}</option>)}
                       </select>
