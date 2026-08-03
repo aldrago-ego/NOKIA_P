@@ -49,7 +49,7 @@ export default function ClientsPage() {
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         placeholder="Rechercher un client…"
-        className="w-full max-w-md border border-slate-200 rounded-lg px-3 py-2 text-sm mb-5"
+        className="w-full max-w-md border border-slate-200 rounded-lg px-3 py-2 text-black mb-5"
       />
 
       {!clients ? (
@@ -122,9 +122,9 @@ function ClientCreateForm({ onClose, onCreated }: { onClose: () => void; onCreat
       <div className="bg-white rounded-xl w-full max-w-md p-6 shadow-2xl">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-base font-bold text-[#0F172A]">Nouveau client</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">✕</button>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-black">✕</button>
         </div>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} className="space-y-4 text-black">
           {error && <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-4">{error}</div>}
 
           <label className="block text-xs font-semibold text-slate-500 mb-1.5">Nom</label>

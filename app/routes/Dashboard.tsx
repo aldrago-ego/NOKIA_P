@@ -287,20 +287,18 @@ export default function Dashboard() {
   return (
     <div className="p-6 bg-[#F4F6FA] min-h-full">
       {/* ---------- HEADER : titre + sélecteur de projet ---------- */}
-      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
-        <div>
-          <h1 className="text-xl font-bold text-[#0F172A] mb-1">Dashboard</h1>
-          <p className="text-sm text-slate-500">
-            Vue d'ensemble du stock — Entrepôt Lomé
-          </p>
-        </div>
+     <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-3">
+  <div>
+    <h1 className="text-lg md:text-xl font-bold text-[#0F172A] mb-1">Dashboard</h1>
+    <p className="text-xs md:text-sm text-slate-500">Vue d'ensemble du stock — Entrepôt Lomé</p>
+  </div>
 
-        <div className="flex items-center gap-2" ref={dropdownRef}>
+  <div className="flex items-center gap-2 flex-wrap" ref={dropdownRef}>
           {/* Dropdown projet */}
           <div className="relative">
             <button
               onClick={() => setProjectDropdownOpen((o) => !o)}
-              className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-4 py-2.5 text-sm font-semibold text-[#0F172A] hover:border-[#124191] transition-colors min-w-[200px] justify-between"
+              className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-4 py-2.5 text-sm font-semibold text-[#0F172A] hover:border-[#124191] transition-colors min-w-[200px] md:min-w-0 flex-1 md:flex-none justify-between"
             >
               <span className="flex items-center gap-2">
                 {!projects ? (
@@ -371,7 +369,7 @@ export default function Dashboard() {
           {/* Bouton créer un projet */}
           <button
             onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-1.5 bg-[#124191] text-white text-sm font-semibold rounded-lg px-4 py-2.5 hover:bg-[#0d3373] transition-colors"
+            className="flex items-center gap-1.5 justify-center bg-[#124191] text-white text-sm font-semibold rounded-lg px-4 py-2.5 hover:bg-[#0d3373] transition-colors flex-1 md:flex-none whitespace-nowrap"
           >
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
               <path
@@ -407,23 +405,24 @@ export default function Dashboard() {
 
       {/* ---------- 4 KPI CARDS ---------- */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        {CARD_CONFIG.map((cfg) => {
-          const value = stats ? statsValue(stats, cfg.key) : null;
-          const unavailable = !!(stats && value === null); // SMR/Faulty sur projet non tracé
+        {CARD_CONFIG.map((cfg, idx) => {
+  const value = stats ? statsValue(stats, cfg.key) : null;
+  const unavailable = !!(stats && value === null);
 
-          return (
-            <button
-              key={cfg.key}
-              disabled={unavailable}
-              onClick={() => !unavailable && toggleCard(cfg.key)}
-              className={`text-left bg-white rounded-xl border p-5 transition-all duration-150
-                ${unavailable ? "opacity-60 cursor-not-allowed" : ""}
-                ${
-                  openCard === cfg.key
-                    ? "border-[#F2790B] shadow-[0_0_0_1px_#F2790B] -translate-y-0.5"
-                    : "border-slate-200 hover:border-[#F2790B] hover:-translate-y-0.5 hover:shadow-md"
-                }`}
-            >
+  return (
+    <button
+      key={cfg.key}
+      disabled={unavailable}
+      onClick={() => !unavailable && toggleCard(cfg.key)}
+      style={{ animationDelay: `${idx * 60}ms` }}
+      className={`text-left bg-white rounded-xl border p-4 md:p-5 transition-all duration-150 animate-[fadeIn_.4s_ease_backwards]
+        ${unavailable ? "opacity-60 cursor-not-allowed" : ""}
+        ${
+          openCard === cfg.key
+            ? "border-[#F2790B] shadow-[0_0_0_1px_#F2790B] -translate-y-0.5"
+            : "border-slate-200 hover:border-[#F2790B] hover:-translate-y-0.5 hover:shadow-md"
+        }`}
+    >
               <div className="flex items-center gap-3">
                 <span
                   className={`w-9 h-9 rounded-lg ${cfg.badgeBg} text-white font-bold flex items-center justify-center text-sm`}
@@ -448,13 +447,12 @@ export default function Dashboard() {
                   <span className="text-sm text-slate-400 italic">
                     Non disponible
                   </span>
-                ) : 
-                cfg.key === "inventory" ? (
+                ) : cfg.key === "inventory" ? (
                   <>
-                    <span className="text-base font-bold text-[#0F172A]">
+                    <span className="text-slate-300 font-bold text-[#0F172A]">
                       {value!.toLocaleString("fr-FR")}
                     </span>
-                    <div className="text-[15px] text-slate-400 mt-1">
+                    <div className=" text-black mt-1">
                       {activities && activities[0]
                         ? `Dernière transaction : ${new Date(
                             activities[0].timestamp,
@@ -484,7 +482,7 @@ export default function Dashboard() {
 
       {/* ---------- DETAIL PANEL — Real-Time Inventory par Domain ---------- */}
       {openCard === "inventory" && (
-        <div className="bg-white rounded-xl border border-slate-200 mb-6 overflow-hidden text-black">
+        <div className="bg-white rounded-xl border border-slate-200 mb-6 overflow-hidden text-black animate-[slideDown_.25s_ease]">
           <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 bg-slate-50">
             <h3 className="text-sm font-semibold text-[#0F172A]">
               Real-Time Inventory — matériel en stock (indépendant du projet)
@@ -554,40 +552,63 @@ export default function Dashboard() {
                       </div>
                     </button>
 
-                    {isOpen && (
-                      <div className="border-t border-slate-100">
-                        {Array.from(groupMap.entries()).map(
-                          ([materialGroup, lines]: [string, any[]]) => (
-                            <div key={materialGroup}>
-                              <div className="px-4 py-1.5 bg-slate-50/50 text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
-                                {materialGroup}
-                              </div>
-                              <table className="w-full text-sm">
-                                <tbody>
-                                  {lines.map((l: any) => (
-                                    <tr
-                                      key={l.hardwareProductId}
-                                      className="border-b border-slate-50"
-                                    >
-                                      <td className="px-4 py-2 font-mono text-xs text-[#124191]">
-                                        {l.partNumber}
-                                      </td>
-                                      <td className="px-4 py-2">{l.name}</td>
-                                      <td className="px-4 py-2 text-right font-mono">
-                                        {l.totalQuantity}
-                                      </td>
-                                      <td className="px-4 py-2 text-right font-mono text-red-600">
-                                        {l.defectiveQuantity || "—"}
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          ),
-                        )}
-                      </div>
-                    )}
+                   {isOpen && (
+  <div className="border-t border-slate-100">
+    {Array.from(groupMap.entries()).map(
+      ([materialGroup, lines]: [string, any[]]) => (
+        <div key={materialGroup}>
+          <div className="px-4 py-1.5 bg-slate-50/50 text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
+            {materialGroup}
+          </div>
+
+          {/* Vue tableau — desktop uniquement */}
+          <table className="w-full text-sm hidden sm:table">
+            <tbody>
+              {lines.map((l: any) => (
+                <tr key={l.hardwareProductId} className="border-b border-slate-50">
+                  <td className="px-4 py-2 font-mono text-xs text-[#124191]">
+                    {l.partNumber}
+                  </td>
+                  <td className="px-4 py-2">{l.name}</td>
+                  <td className="px-4 py-2 text-right font-mono">
+                    {l.totalQuantity}
+                  </td>
+                  <td className="px-4 py-2 text-right font-mono text-red-600">
+                    {l.defectiveQuantity || "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          {/* Vue cartes empilées — mobile uniquement */}
+          <div className="sm:hidden divide-y divide-slate-50">
+            {lines.map((l: any) => (
+              <div key={l.hardwareProductId} className="px-4 py-2.5">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-mono text-xs text-[#124191] font-semibold">
+                    {l.partNumber}
+                  </span>
+                  <span className="font-mono text-sm font-bold text-[#0F172A]">
+                    {l.totalQuantity}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-slate-600 truncate pr-2">{l.name}</span>
+                  {l.defectiveQuantity > 0 && (
+                    <span className="text-xs font-mono text-red-600 whitespace-nowrap">
+                      {l.defectiveQuantity} déf.
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ),
+    )}
+  </div>
+)}
                   </div>
                 );
               })
@@ -598,7 +619,7 @@ export default function Dashboard() {
 
       {/* ---------- DETAIL PANEL — HW Shipment / SMRs / Faulty HW RMA (à câbler) ---------- */}
       {openCard && openCard !== "inventory" && (
-        <div className="bg-white rounded-xl border border-slate-200 mb-6 overflow-hidden">
+        <div className="bg-white rounded-xl border border-slate-200 mb-6 overflow-hidden animate-[slideDown_.25s_ease]">
           <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 bg-slate-50">
             <h3 className="text-sm font-semibold text-[#0F172A]">
               {CARD_CONFIG.find((c) => c.key === openCard)?.label}
@@ -668,14 +689,14 @@ export default function Dashboard() {
       )}
 
       {/* ---------- TABLEAU : ACTIVITÉS RÉCENTES ---------- */}
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden animate-[fadeIn_.4s_ease]">
         <div className="px-5 py-3 border-b border-slate-200 bg-slate-50">
           <h3 className="text-sm font-semibold text-[#0F172A]">
             Activités récentes
           </h3>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm min-w-[560px]">
             <thead>
               <tr className="text-xs text-slate-400 uppercase tracking-wide border-b border-slate-100">
                 <th className="text-left font-medium px-5 py-3">Date</th>
@@ -741,15 +762,15 @@ export default function Dashboard() {
                 })
               )}
             </tbody>
-            <div className="px-5 py-3 border-t border-slate-100 bg-slate-50/50 text-right">
-              <a
-                href="/history"
-                className="text-xs font-semibold text-[#124191] hover:underline"
-              >
-                Voir tout l'historique →
-              </a>
-            </div>
           </table>
+          <div className="px-5 py-3 border-t border-slate-100 bg-slate-50/50 text-right">
+            <a
+              href="/history"
+              className="text-xs font-semibold text-[#124191] hover:underline"
+            >
+              Voir tout l'historique →
+            </a>
+          </div>
         </div>
       </div>
 

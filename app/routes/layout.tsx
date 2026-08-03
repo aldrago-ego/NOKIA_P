@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { NavLink, Outlet, useNavigate } from 'react-router';
+import { Links, Meta, NavLink, Outlet, Scripts, ScrollRestoration, useNavigate } from 'react-router';
 import { ProjectProvider } from './project';
 import { useAuth } from './authContext';
 
@@ -211,5 +211,34 @@ export default function AppLayout() {
         </div>
       </div>
     </ProjectProvider>
+  );
+}
+export function Layout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <head>
+        <meta charSet="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="theme-color" content="#124191" />
+        <Meta />
+        <Links />
+      </head>
+      <body>
+        {children}
+        <ScrollRestoration />
+        <Scripts />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if ('serviceWorker' in navigator) {
+                window.addEventListener('load', () => {
+                  navigator.serviceWorker.register('/sw.js').catch(() => {});
+                });
+              }
+            `,
+          }}
+        />
+      </body>
+    </html>
   );
 }
