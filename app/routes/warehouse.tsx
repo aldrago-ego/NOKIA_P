@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import * as XLSX from "xlsx";
 import { useProject } from "./project";
 import { ShipmentModal } from "./ShipmentDetailPanel";
@@ -9,6 +9,11 @@ import { useAuth } from "./authContext";
 import StockCorrectionForm from "./StockCorrectionForm";
 import ProductEditForm from "./ProductEditForm";
 import LoadingButton from "../Component/LoadingButton";
+import LowStockAlert from "./LowStockAlert";
+import SubcontractorUsagePanel from "./SubcontractorUsagePanel";
+import LowStockPanel from "./lowstockpanel";
+import { useFetchState } from "../useFetchState";
+import ErrorState from "../Component/ErrorState";
 
 const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:5000/api";
 
@@ -134,6 +139,7 @@ function timeAgo(iso: string) {
     month: "2-digit",
   });
 }
+const DEFECT_ALLOWED_DOMAINS = ["RAN", "Microwave", "Energy"];
 
 export default function WarehousePage() {
   const { selectedProjectId, selectedProject } = useProject();
@@ -141,13 +147,8 @@ export default function WarehousePage() {
 
   const [showCategoryManager, setShowCategoryManager] = useState(false);
   const [showStockCorrection, setShowStockCorrection] = useState(false);
-  const [selectedWarehouseId, setSelectedWarehouseId] = useState<number | null>(
-    null,
-  );
   const [showWithdrawalForm, setShowWithdrawalForm] = useState(false);
   const [editingProductId, setEditingProductId] = useState<number | null>(null);
-  const [lines, setLines] = useState<WarehouseAssetLine[] | null>(null);
-  const [error, setError] = useState(false);
   const [search, setSearch] = useState("");
   const [toast, setToast] = useState<string | null>(null);
 
@@ -157,75 +158,77 @@ export default function WarehousePage() {
     "",
   );
 
-  const [pendingShipments, setPendingShipments] = useState<
-    PendingShipment[] | null
-  >(null);
   const [reviewShipmentId, setReviewShipmentId] = useState<number | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
 
+  // Entrepôt par défaut — fetch auto au montage
+  const { data: warehousesList } = useFetchState<Warehouse[]>(
+    (signal) =>
+      apiFetch(`${API_BASE}/Warehouses`, { signal }).then((res) => res.json()),
+    [],
+  );
+  const selectedWarehouseId = warehousesList?.[0]?.id ?? null;
+
+  const {
+    data: lines,
+    loading: linesLoading,
+    error: linesError,
+    retry: retryLines,
+  } = useFetchState<WarehouseAssetLine[] | null>(
+    async (signal) => {
+      if (selectedWarehouseId == null) return null;
+      const res = await apiFetch(
+        `${API_BASE}/PhysicalAssets/by-warehouse/${selectedWarehouseId}`,
+        { signal },
+      );
+      return res.json();
+    },
+    [selectedWarehouseId],
+  );
+
+  const {
+    data: pendingShipments,
+    error: pendingShipmentsError,
+    retry: retryPendingShipments,
+  } = useFetchState<PendingShipment[] | null>(
+    async (signal) => {
+      if (selectedProjectId == null) return null;
+      const res = await apiFetch(
+        `${API_BASE}/DeliveryNotes?projectId=${selectedProjectId}`,
+        { signal },
+      );
+      const data: any[] = await res.json();
+      return data
+        .filter((s) => s.status === "Pending")
+        .map((s) => ({
+          id: s.id,
+          deliveryNumber: s.deliveryNumber,
+          scope: s.scope,
+          location: s.location,
+          vesselArrivalDate: s.vesselArrivalDate,
+        }));
+    },
+    [selectedProjectId],
+  );
+
   // ---------- Activité récente (nouveau) ----------
-  const [recentActivity, setRecentActivity] = useState<any[] | null>(null);
-
-  useEffect(() => {
-    apiFetch(`${API_BASE}/Warehouses`)
-      .then((res) => res.json())
-      .then((data: Warehouse[]) => {
-        if (data.length > 0) setSelectedWarehouseId(data[0].id);
-      })
-      .catch(() => setError(true));
-  }, []);
-
-  const loadLines = useCallback(() => {
-    if (selectedWarehouseId == null) return;
-    setLines(null);
-    setError(false);
-    apiFetch(`${API_BASE}/PhysicalAssets/by-warehouse/${selectedWarehouseId}`)
-      .then((res) => res.json())
-      .then(setLines)
-      .catch(() => setError(true));
-  }, [selectedWarehouseId]);
-
-  useEffect(() => {
-    loadLines();
-  }, [loadLines]);
-
-  const loadPendingShipments = useCallback(() => {
-    if (selectedProjectId == null) return;
-    apiFetch(`${API_BASE}/DeliveryNotes?projectId=${selectedProjectId}`)
-      .then((res) => res.json())
-      .then((data: any[]) => {
-        setPendingShipments(
-          data
-            .filter((s) => s.status === "Pending")
-            .map((s) => ({
-              id: s.id,
-              deliveryNumber: s.deliveryNumber,
-              scope: s.scope,
-              location: s.location,
-              vesselArrivalDate: s.vesselArrivalDate,
-            })),
-        );
-      })
-      .catch(() => setPendingShipments([]));
-  }, [selectedProjectId]);
-
-  useEffect(() => {
-    loadPendingShipments();
-  }, [loadPendingShipments]);
-
-  const loadRecentActivity = useCallback(() => {
-    if (selectedProjectId == null) return;
-    apiFetch(
-      `${API_BASE}/ActivityLogs/history?projectId=${selectedProjectId}&page=1&pageSize=5`,
-    )
-      .then((r) => r.json())
-      .then((data) => setRecentActivity(data.items))
-      .catch(() => setRecentActivity([]));
-  }, [selectedProjectId]);
-
-  useEffect(() => {
-    loadRecentActivity();
-  }, [loadRecentActivity]);
+  const {
+    data: recentActivity,
+    loading: recentActivityLoading,
+    error: recentActivityError,
+    retry: retryRecentActivity,
+  } = useFetchState<any[] | null>(
+    async (signal) => {
+      if (selectedProjectId == null) return null;
+      const res = await apiFetch(
+        `${API_BASE}/ActivityLogs/history?projectId=${selectedProjectId}&page=1&pageSize=5`,
+        { signal },
+      );
+      const data = await res.json();
+      return data.items;
+    },
+    [selectedProjectId],
+  );
 
   function showToast(msg: string) {
     setToast(msg);
@@ -234,9 +237,9 @@ export default function WarehousePage() {
 
   function handleConfirmed() {
     setReviewShipmentId(null);
-    loadPendingShipments();
-    loadLines();
-    loadRecentActivity();
+    retryPendingShipments();
+    retryLines();
+    retryRecentActivity();
     showToast("Livraison confirmée — matériel injecté en stock");
   }
 
@@ -252,7 +255,7 @@ export default function WarehousePage() {
         },
       );
       if (!res.ok) throw new Error();
-      loadLines();
+      retryLines();
       showToast("Statut mis à jour");
     } catch {
       showToast("Échec de la mise à jour");
@@ -293,11 +296,7 @@ export default function WarehousePage() {
       if (statusFilter === "good" && l.defectiveQuantity > 0) return false;
       if (search.trim()) {
         const q = search.toLowerCase();
-        if (
-          !l.partNumber.toLowerCase().includes(q) &&
-          !l.name.toLowerCase().includes(q)
-        )
-          return false;
+        if (!l.name.toLowerCase().includes(q)) return false;
       }
       return true;
     });
@@ -340,85 +339,85 @@ export default function WarehousePage() {
 
         <div className="flex items-center gap-2 flex-wrap w-full md:w-auto">
           {isElevated && (
-          <button
-            onClick={() => setShowImportModal(true)}
-            className="flex items-center gap-1.5 bg-white border border-slate-200 text-sm font-semibold text-[#0F172A] rounded-lg px-4 py-2.5 hover:border-[#124191] hover:shadow-sm transition-all"
-          >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
-              <path
-                d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-            Importer (Excel)
-          </button>
+            <button
+              onClick={() => setShowImportModal(true)}
+              className="flex items-center gap-1.5 bg-white border border-slate-200 text-sm font-semibold text-[#0F172A] rounded-lg px-4 py-2.5 hover:border-[#124191] hover:shadow-sm transition-all"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              Importer (Excel)
+            </button>
           )}
           {isElevated && (
-          <button
-            onClick={() => setShowWithdrawalForm(true)}
-            disabled={!lines || lines.length === 0}
-            className="flex items-center gap-1.5 bg-white border border-slate-200 text-sm font-semibold text-[#0F172A] rounded-lg px-4 py-2.5 hover:border-[#124191] hover:shadow-sm transition-all disabled:opacity-50"
-          >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
-              <path
-                d="M12 21V9m0 12l-4-4m4 4l4-4M4 5h16"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-            Donner à un client
-          </button>
+            <button
+              onClick={() => setShowWithdrawalForm(true)}
+              disabled={!lines || lines.length === 0}
+              className="flex items-center gap-1.5 bg-white border border-slate-200 text-sm font-semibold text-[#0F172A] rounded-lg px-4 py-2.5 hover:border-[#124191] hover:shadow-sm transition-all disabled:opacity-50"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M12 21V9m0 12l-4-4m4 4l4-4M4 5h16"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              Donner à un client
+            </button>
           )}
-{isAdmin && (
-          <button
-            onClick={() => setShowCategoryManager(true)}
-            className="flex items-center gap-1.5 bg-white border border-slate-200 text-sm font-semibold text-[#0F172A] rounded-lg px-4 py-2.5 hover:border-[#124191] hover:shadow-sm transition-all"
-          >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
-              <rect
-                x="3"
-                y="3"
-                width="7"
-                height="7"
-                rx="1.5"
-                stroke="currentColor"
-                strokeWidth="1.8"
-              />
-              <rect
-                x="14"
-                y="3"
-                width="7"
-                height="7"
-                rx="1.5"
-                stroke="currentColor"
-                strokeWidth="1.8"
-              />
-              <rect
-                x="3"
-                y="14"
-                width="7"
-                height="7"
-                rx="1.5"
-                stroke="currentColor"
-                strokeWidth="1.8"
-              />
-              <rect
-                x="14"
-                y="14"
-                width="7"
-                height="7"
-                rx="1.5"
-                stroke="currentColor"
-                strokeWidth="1.8"
-              />
-            </svg>
-            Catégories
-          </button>
+          {isAdmin && (
+            <button
+              onClick={() => setShowCategoryManager(true)}
+              className="flex items-center gap-1.5 bg-white border border-slate-200 text-sm font-semibold text-[#0F172A] rounded-lg px-4 py-2.5 hover:border-[#124191] hover:shadow-sm transition-all"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
+                <rect
+                  x="3"
+                  y="3"
+                  width="7"
+                  height="7"
+                  rx="1.5"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                />
+                <rect
+                  x="14"
+                  y="3"
+                  width="7"
+                  height="7"
+                  rx="1.5"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                />
+                <rect
+                  x="3"
+                  y="14"
+                  width="7"
+                  height="7"
+                  rx="1.5"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                />
+                <rect
+                  x="14"
+                  y="14"
+                  width="7"
+                  height="7"
+                  rx="1.5"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                />
+              </svg>
+              Catégories
+            </button>
           )}
 
           {isAdmin && (
@@ -440,10 +439,25 @@ export default function WarehousePage() {
           )}
         </div>
       </div>
+      <LowStockPanel />
 
       {/* ---------- Bandeau shipments en attente ---------- */}
-      
-      { isElevated && pendingShipments && pendingShipments.length > 0 && (
+
+      {isElevated && pendingShipmentsError && (
+        <div className="mb-5 flex items-center justify-between gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-600">
+          <span>
+            Impossible de charger les shipments en attente de confirmation.
+          </span>
+          <button
+            onClick={retryPendingShipments}
+            className="flex-shrink-0 flex items-center gap-1.5 bg-white border border-slate-200 text-xs font-semibold text-[#0F172A] rounded-lg px-3 py-1.5 hover:border-[#124191] hover:shadow-sm transition-all"
+          >
+            Réessayer
+          </button>
+        </div>
+      )}
+
+      {isElevated && pendingShipments && pendingShipments.length > 0 && (
         <div className="mb-5 bg-amber-50 border border-amber-200 rounded-xl overflow-hidden animate-[fadeIn_.3s_ease]">
           <div className="flex items-center gap-2 px-4 py-3 border-b border-amber-200">
             <svg
@@ -551,7 +565,7 @@ export default function WarehousePage() {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Rechercher par code ou description…"
+            placeholder="Rechercher par  description…"
             className="w-full border border-slate-200 rounded-lg pl-9 pr-3 py-2.5 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#124191]/30 focus:border-[#124191] transition-all"
           />
         </div>
@@ -582,11 +596,12 @@ export default function WarehousePage() {
         </div>
       </div>
 
-      {error ? (
-        <p className="text-sm text-red-400 text-center py-10">
-          Impossible de charger le stock de cet entrepôt.
-        </p>
-      ) : !lines ? (
+      {linesError ? (
+        <ErrorState
+          message={linesError}
+          onRetry={retryLines}
+        />
+      ) : linesLoading || !lines ? (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {Array.from({ length: 3 }).map((_, i) => (
             <div
@@ -641,7 +656,12 @@ export default function WarehousePage() {
             <h3 className="text-sm font-bold text-[#0F172A] mb-4">
               Activité récente
             </h3>
-            {!recentActivity ? (
+            {recentActivityError ? (
+              <ErrorState
+                message={recentActivityError}
+                onRetry={retryRecentActivity}
+              />
+            ) : recentActivityLoading || !recentActivity ? (
               <div className="space-y-3">
                 {Array.from({ length: 4 }).map((_, i) => (
                   <div
@@ -800,7 +820,7 @@ export default function WarehousePage() {
           onClose={() => setShowImportModal(false)}
           onImported={() => {
             setShowImportModal(false);
-            loadPendingShipments();
+            retryPendingShipments();
             showToast("Import terminé — vérifiez les shipments en attente");
           }}
         />
@@ -809,7 +829,7 @@ export default function WarehousePage() {
         <CategoryManager
           onClose={() => {
             setShowCategoryManager(false);
-            loadLines();
+            retryLines();
           }}
         />
       )}
@@ -824,8 +844,8 @@ export default function WarehousePage() {
             onClose={() => setShowWithdrawalForm(false)}
             onDone={() => {
               setShowWithdrawalForm(false);
-              loadLines();
-              loadRecentActivity();
+              retryLines();
+              retryRecentActivity();
               showToast("Matériel donné au client — stock mis à jour");
             }}
           />
@@ -841,8 +861,8 @@ export default function WarehousePage() {
             onClose={() => setShowStockCorrection(false)}
             onDone={() => {
               setShowStockCorrection(false);
-              loadLines();
-              loadRecentActivity();
+              retryLines();
+              retryRecentActivity();
               showToast("Stock mis à jour");
             }}
           />
@@ -853,7 +873,7 @@ export default function WarehousePage() {
           onClose={() => setEditingProductId(null)}
           onSaved={() => {
             setEditingProductId(null);
-            loadLines();
+            retryLines();
             showToast("Fiche produit mise à jour");
           }}
         />
@@ -1190,11 +1210,12 @@ function findMaterialSheet(workbook: XLSX.WorkBook): any[][] | null {
 // Regroupe les lignes de matériel par numéro de shipment (via la colonne SHP),
 // en sommant les quantités pour un même matériel (le fichier SAP a souvent des
 // lignes dupliquées avec quantité 0 puis quantité réelle — la somme reste correcte).
-function extractExpectedMaterialsBySHP(
-  workbook: XLSX.WorkBook,
-): Record<string, ExpectedMaterialLine[]> {
+function extractExpectedMaterialsBySHP(workbook: XLSX.WorkBook): {
+  bySite: Record<string, ExpectedMaterialLine[]>;
+  skippedCount: number;
+} {
   const sheetRows = findMaterialSheet(workbook);
-  if (!sheetRows) return {};
+  if (!sheetRows) return { bySite: {}, skippedCount: 0 };
 
   const headerRow = sheetRows[0];
   const colIndex = (pattern: RegExp) =>
@@ -1206,21 +1227,30 @@ function extractExpectedMaterialsBySHP(
   const descriptionCol = colIndex(/^description$/i);
   const qtyCol = colIndex(/^order quantity$/i);
   const shpCol = colIndex(/^shp$/i);
+  const categoryCol = colIndex(/^category$/i);
 
-  if (materialCol === -1 || qtyCol === -1 || shpCol === -1) return {};
+  if (materialCol === -1 || qtyCol === -1 || shpCol === -1) {
+    return { bySite: {}, skippedCount: 0 };
+  }
 
   // clé = "1", "2"... (numéro de shipment extrait de "SHP1", "SHP2"...)
   const grouped: Record<string, Map<string, ExpectedMaterialLine>> = {};
+  let skippedCount = 0;
 
   for (let i = 1; i < sheetRows.length; i++) {
     const row = sheetRows[i];
+    const partNumber = String(row[materialCol] ?? "").trim();
     const shpValue = String(row[shpCol] ?? "").trim();
     const match = shpValue.match(/^SHP(\d+)$/i);
 
-    if (!match) continue;
+    if (!match) {
+      // Ligne avec un vrai matériel mais sans SHP exploitable — comptée comme
+      // ignorée plutôt que sautée silencieusement.
+      if (partNumber) skippedCount++;
+      continue;
+    }
 
     const shipmentNo = match[1];
-    const partNumber = String(row[materialCol] ?? "").trim();
     const qty = parseInt(row[qtyCol]) || 0;
     if (!partNumber) continue;
 
@@ -1234,21 +1264,26 @@ function extractExpectedMaterialsBySHP(
         description:
           descriptionCol !== -1 ? String(row[descriptionCol] ?? "") : "",
         expectedQuantity: qty,
+        category:
+          categoryCol !== -1
+            ? String(row[categoryCol] ?? "").trim()
+            : undefined,
       });
     }
   }
 
-  const result: Record<string, ExpectedMaterialLine[]> = {};
+  const bySite: Record<string, ExpectedMaterialLine[]> = {};
   for (const [shipmentNo, map] of Object.entries(grouped)) {
-    result[shipmentNo] = Array.from(map.values());
+    bySite[shipmentNo] = Array.from(map.values());
   }
-  return result;
+  return { bySite, skippedCount };
 }
 
 interface ExpectedMaterialLine {
   partNumber: string;
   description: string;
   expectedQuantity: number;
+  category?: string;
 }
 
 // =========================================================
@@ -1323,13 +1358,17 @@ function ImportShipmentsModal({
         }
 
         const parsedRows = extractShipmentRows(shipmentSheetRows);
-        const materialsBySHP = extractExpectedMaterialsBySHP(wb);
+        // APRÈS
+        const { bySite: materialsBySHP, skippedCount } =
+          extractExpectedMaterialsBySHP(wb);
 
-        // Fusion : attache le manifeste complet (Sheet1) à chaque shipment détecté (Feuil1)
         const enrichedRows = parsedRows.map((r) => ({
           ...r,
           materials: materialsBySHP[r.shipmentNo] ?? r.materials ?? [],
         }));
+
+        // Stocke le compte pour l'affichage post-import
+        setSkippedMaterialsCount(skippedCount);
 
         if (enrichedRows.length === 0) {
           setError(
@@ -1359,13 +1398,13 @@ function ImportShipmentsModal({
     };
     reader.readAsArrayBuffer(file);
   }
+  const [skippedMaterialsCount, setSkippedMaterialsCount] = useState(0);
 
   return (
     <div
       className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4 text-black"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      
       <div className="bg-white rounded-xl w-full max-w-md p-6 shadow-2xl">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-base font-bold text-[#0F172A]">
@@ -1405,6 +1444,30 @@ function ImportShipmentsModal({
                 </ul>
               )}
             </div>
+            {skippedMaterialsCount > 0 && (
+              <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg px-3 py-2.5 mb-3">
+                <svg
+                  className="w-4 h-4 flex-shrink-0 mt-0.5"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                >
+                  <path
+                    d="M12 9v4m0 4h.01M10.3 3.9L2.7 17a2 2 0 001.7 3h15.2a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                  />
+                </svg>
+                <span>
+                  <strong>
+                    {skippedMaterialsCount} ligne(s) de matériel ignorée(s)
+                  </strong>{" "}
+                  — colonne "SHP" vide ou invalide dans le fichier. Ces
+                  références n'apparaîtront dans aucun manifeste de shipment
+                  tant qu'elles ne seront pas rattachées à un numéro SHP dans le
+                  fichier source.
+                </span>
+              </div>
+            )}
             <p className="text-xs text-slate-400 mb-4">
               Ces shipments sont en attente — confirmez leur réception depuis le
               bandeau "en attente de confirmation" pour les injecter en stock.
@@ -1637,11 +1700,20 @@ function MaterialCard({
             <span className="text-xs font-normal text-slate-400">en stock</span>
           </span>
           <div className="flex items-center gap-2">
-            <DefectInput
-              value={u.defectiveQuantity}
-              max={u.quantity}
-              onSave={(v) => onDefectSave(u.id, v, u.quantity)}
-            />
+            {DEFECT_ALLOWED_DOMAINS.includes(line.domain) ? (
+              <DefectInput
+                value={u.defectiveQuantity}
+                max={u.quantity}
+                onSave={(v) => onDefectSave(u.id, v, u.quantity)}
+              />
+            ) : (
+              <span
+                className="text-xs text-slate-300"
+                title="Cette catégorie de matériel ne peut pas être marquée défectueuse"
+              >
+                —
+              </span>
+            )}
             {onEdit && (
               <button
                 onClick={onEdit}
@@ -1702,11 +1774,20 @@ function MaterialCard({
                 <span className="ml-2 text-slate-400">· {u.quantity}</span>
               </span>
               <div className="flex items-center gap-2">
-                <DefectInput
-                  value={u.defectiveQuantity}
-                  max={u.quantity}
-                  onSave={(v) => onDefectSave(u.id, v, u.quantity)}
-                />
+                {DEFECT_ALLOWED_DOMAINS.includes(line.domain) ? (
+                  <DefectInput
+                    value={u.defectiveQuantity}
+                    max={u.quantity}
+                    onSave={(v) => onDefectSave(u.id, v, u.quantity)}
+                  />
+                ) : (
+                  <span
+                    className="text-xs text-slate-300"
+                    title="Cette catégorie de matériel ne peut pas être marquée défectueuse"
+                  >
+                    —
+                  </span>
+                )}
                 <StatusPill defective={u.defectiveQuantity > 0} />
               </div>
             </div>

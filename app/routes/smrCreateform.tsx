@@ -1,9 +1,11 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useState } from "react";
 import { useProject } from "./project";
 import {apiFetch} from "../apiFetch";
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:5000/api';
 import SiteCreateForm from "./sitesCreateForm";
 import LoadingButton from "../Component/LoadingButton";
+import { useFetchState } from "../useFetchState";
+import ErrorState from "../Component/ErrorState";
 
 interface Client {
   id: number;
@@ -45,11 +47,6 @@ export default function SmrCreateForm({
   const { selectedProjectId } = useProject();
   const [showSiteForm, setShowSiteForm] = useState(false);
 
-  const [warehouse, setWarehouse] = useState<Warehouse | null>(null);
-  const [clients, setClients] = useState<Client[] | null>(null);
-  const [sites, setSites] = useState<Site[] | null>(null);
-  const [stockLines, setStockLines] = useState<StockLine[] | null>(null);
-
   const [smrNumber, setSmrNumber] = useState("");
   const [clientId, setClientId] = useState<number | null>(null);
   const [selectedSiteId, setSelectedSiteId] = useState<number | null>(null);
@@ -60,37 +57,58 @@ export default function SmrCreateForm({
   const [error, setError] = useState<string | null>(null);
 
   // ---------- Chargement initial : entrepôt, clients, sites, stock disponible ----------
-  useEffect(() => {
-    apiFetch(`${API_BASE}/Warehouses`)
-      .then((r) => r.json())
-      .then((data: Warehouse[]) => setWarehouse(data[0] ?? null));
-    apiFetch(`${API_BASE}/Clients`)
-      .then((r) => r.json())
-      .then(setClients)
-      .catch(() => setClients([]));
-    apiFetch(`${API_BASE}/Sites`)
-      .then((r) => r.json())
-      .then(setSites)
-      .catch(() => setSites([]));
-  }, []);
+  const {
+    data: warehouses,
+    error: warehousesError,
+    retry: retryWarehouses,
+  } = useFetchState<Warehouse[]>(
+    (signal) =>
+      apiFetch(`${API_BASE}/Warehouses`, { signal }).then((r) => r.json()),
+    [],
+  );
+  const warehouse = warehouses?.[0] ?? null;
 
-  useEffect(() => {
-    if (!warehouse) return;
-    apiFetch(`${API_BASE}/PhysicalAssets/by-warehouse/${warehouse.id}`)
-      .then((r) => r.json())
-      .then((data: any[]) =>
-        setStockLines(
-          data.map((d) => ({
-            hardwareProductId: d.hardwareProductId,
-            partNumber: d.partNumber,
-            name: d.name,
-            totalQuantity: d.totalQuantity,
-            defectiveQuantity: d.defectiveQuantity,
-          })),
-        ),
-      )
-      .catch(() => setStockLines([]));
-  }, [warehouse]);
+  const {
+    data: clients,
+    error: clientsError,
+    retry: retryClients,
+  } = useFetchState<Client[]>(
+    (signal) => apiFetch(`${API_BASE}/Clients`, { signal }).then((r) => r.json()),
+    [],
+  );
+
+  const {
+    data: sites,
+    error: sitesError,
+    retry: retrySites,
+  } = useFetchState<Site[]>(
+    (signal) => apiFetch(`${API_BASE}/Sites`, { signal }).then((r) => r.json()),
+    [],
+  );
+
+  const {
+    data: stockLines,
+    loading: stockLoading,
+    error: stockError,
+    retry: retryStock,
+  } = useFetchState<StockLine[] | null>(
+    async (signal) => {
+      if (!warehouse) return null;
+      const res = await apiFetch(
+        `${API_BASE}/PhysicalAssets/by-warehouse/${warehouse.id}`,
+        { signal },
+      );
+      const data: any[] = await res.json();
+      return data.map((d) => ({
+        hardwareProductId: d.hardwareProductId,
+        partNumber: d.partNumber,
+        name: d.name,
+        totalQuantity: d.totalQuantity,
+        defectiveQuantity: d.defectiveQuantity,
+      }));
+    },
+    [warehouse],
+  );
 
   function availableQty(line: StockLine) {
     return line.totalQuantity - line.defectiveQuantity;
@@ -197,6 +215,18 @@ export default function SmrCreateForm({
               {error}
             </div>
           )}
+          {(warehousesError || clientsError || sitesError) && (
+            <div className="flex items-center justify-between gap-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
+              <span>Certaines listes n'ont pas pu être chargées.</span>
+              <button
+                type="button"
+                onClick={() => { retryWarehouses(); retryClients(); retrySites(); }}
+                className="font-semibold underline flex-shrink-0"
+              >
+                Réessayer
+              </button>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-3 mb-4">
             <div>
@@ -265,7 +295,11 @@ export default function SmrCreateForm({
             />
             {search.trim() !== "" && (
               <div className="border border-slate-200 rounded-lg max-h-40 overflow-y-auto mb-3">
-                {!stockLines ? (
+                {stockError ? (
+                  <div className="p-2">
+                    <ErrorState message={stockError} onRetry={retryStock} />
+                  </div>
+                ) : stockLoading || !stockLines ? (
                   <div className="p-3 text-xs text-slate-400">
                     Chargement du stock…
                   </div>
@@ -375,10 +409,7 @@ export default function SmrCreateForm({
           onClose={() => setShowSiteForm(false)}
           onCreated={() => {
             setShowSiteForm(false);
-            apiFetch(`${API_BASE}/Sites`)
-              .then((r) => r.json())
-              .then(setSites)
-              .catch(() => {});
+            retrySites();
           }}
         />
       )}

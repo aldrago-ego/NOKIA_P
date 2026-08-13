@@ -1,11 +1,24 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useState } from "react";
 import SmrCreateForm from "./smrCreateform";
+import smrimportform from "./smrImportForm";
 import { apiFetch } from "../apiFetch";
 import LoadingButton from "../Component/LoadingButton";
+import SmrImportForm from "./smrImportForm";
+import { useFetchState } from "../useFetchState";
+import ErrorState from "../Component/ErrorState";
 const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:5000/api";
 
 interface SmrItem {
   id: number;
+  hardwareProductId: number;
+  hardwareProduct: { partNumber: string; name: string };
+  requestedQuantity: number;
+  allocatedQuantity: number;
+}
+interface SmrSiteItem {
+  id: number;
+  siteId: number;
+  site: { siteName: string };
   hardwareProductId: number;
   hardwareProduct: { partNumber: string; name: string };
   requestedQuantity: number;
@@ -19,7 +32,11 @@ interface Smr {
   createdDate: string;
   warehouse: { name: string };
   client: { name: string };
+  subcontractor?: { name: string } | null;
   items: SmrItem[];
+  smrRequestSiteItems?: SmrSiteItem[]; // NOUVEAU
+  itemsCount: number; // nombre total de références demandées (pour SMR par site)
+  siteItemsCount: number; // nombre total de références demandées (pour SMR par sous-traitant)
 }
 
 function statusPill(status: string) {
@@ -43,34 +60,43 @@ function statusPill(status: string) {
 }
 
 export default function SmrDetailPanel({ projectId }: { projectId: number }) {
-  const [smrs, setSmrs] = useState<Smr[] | null>(null);
-  const [error, setError] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [showImportForm, setShowImportForm] = useState(false);
 
-  const load = useCallback(() => {
-    apiFetch(`${API_BASE}/SmrRequests?projectId=${projectId}`)
-      .then((res) => res.json())
-      .then(setSmrs)
-      .catch(() => setError(true));
-  }, [projectId]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
+  const {
+    data: smrs,
+    loading: smrsLoading,
+    error,
+    retry: load,
+  } = useFetchState<Smr[]>(
+    (signal) =>
+      apiFetch(`${API_BASE}/SmrRequests?projectId=${projectId}`, {
+        signal,
+      }).then((res) => res.json()),
+    [projectId],
+  );
 
   return (
     <>
-      <div className="flex justify-end mb-2">
+      <div className="flex justify-end gap-2 mb-2">
         <button
           onClick={() => setShowCreateForm(true)}
+          className="text-xs font-semibold text-[#124191] bg-white border border-slate-200 rounded-lg px-3 py-1.5 hover:border-[#124191]"
+        >
+          + Nouvelle SMR (par site)
+        </button>
+        <button
+          onClick={() => setShowImportForm(true)}
           className="text-xs font-semibold text-white bg-[#124191] rounded-lg px-3 py-1.5 hover:bg-[#0d3373]"
         >
-          + Nouvelle SMR
+          + Importer SMR (sous-traitant)
         </button>
       </div>
       <div className="table-wrap">
-        {!smrs ? (
+        {error ? (
+          <ErrorState message={error} onRetry={load} />
+        ) : smrsLoading || !smrs ? (
           <div className="space-y-2 p-1">
             {Array.from({ length: 3 }).map((_, i) => (
               <div
@@ -79,16 +105,12 @@ export default function SmrDetailPanel({ projectId }: { projectId: number }) {
               />
             ))}
           </div>
-        ) : error ? (
-          <p className="text-sm text-red-400 text-center py-6">
-            Impossible de charger les SMR.
-          </p>
         ) : smrs.length === 0 ? (
           <p className="text-sm text-slate-400 text-center py-6">
             Aucune SMR pour ce projet.
           </p>
         ) : (
-          <table className="w-full text-sm">
+          <table className="w-full text-black text-sm border border-slate-100 rounded-lg">
             <thead>
               <tr className="text-xs text-slate-400 uppercase tracking-wide border-b border-slate-100">
                 <th className="text-left font-medium px-4 py-2.5">N° SMR</th>
@@ -115,7 +137,7 @@ export default function SmrDetailPanel({ projectId }: { projectId: number }) {
                     {s.warehouse?.name}
                   </td>
                   <td className="px-4 py-2.5 text-slate-500">
-                    {s.items.length}
+                    {s.itemsCount > 0 ? s.itemsCount : s.siteItemsCount}
                   </td>
                   <td className="px-4 py-2.5">{statusPill(s.status)}</td>
                 </tr>
@@ -144,10 +166,20 @@ export default function SmrDetailPanel({ projectId }: { projectId: number }) {
           }}
         />
       )}
+      {showImportForm && (
+        <SmrImportForm
+          projectId={projectId}
+          onClose={() => setShowImportForm(false)}
+          onImported={() => {
+            setShowImportForm(false);
+            load();
+          }}
+        />
+      )}
     </>
   );
 }
-
+// composant pour l'affichage d'une SMR en détail, avec approbation ou rejet par un superviseur.
 function SmrModal({
   smrId,
   onClose,
@@ -157,7 +189,7 @@ function SmrModal({
   onClose: () => void;
   onDone: () => void;
 }) {
-  const [smr, setSmr] = useState<Smr | null>(null);
+  // erreur de mutation (approbation/rejet) — distincte de l'erreur de chargement ci-dessous
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [shortages, setShortages] = useState<any[] | null>(null);
@@ -165,14 +197,23 @@ function SmrModal({
   const [reason, setReason] = useState("");
   const [actor, setActor] = useState("");
 
-  useEffect(() => {
-    apiFetch(`${API_BASE}/SmrRequests/${smrId}`)
-      .then((r) => r.json())
-      .then(setSmr)
-      .catch(() => setError("Impossible de charger cette SMR."));
-  }, [smrId]);
+  const {
+    data: smr,
+    loading: smrLoading,
+    error: loadError,
+    retry: retrySmr,
+  } = useFetchState<Smr>(
+    (signal) =>
+      apiFetch(`${API_BASE}/SmrRequests/${smrId}`, { signal }).then((r) =>
+        r.json(),
+      ),
+    [smrId],
+  );
 
-  async function handleApprove(force = false) {
+  async function handleApprove(
+    force = false,
+    overrides?: { siteItemId: number; confirmedQuantity: number }[],
+  ) {
     setBusy(true);
     setError(null);
     try {
@@ -182,6 +223,7 @@ function SmrModal({
         body: JSON.stringify({
           approvedBy: actor || "Admin",
           forcePartialAllocation: force,
+          siteItemOverrides: overrides,
         }),
       });
       if (res.status === 409) {
@@ -234,7 +276,9 @@ function SmrModal({
         </div>
 
         <div className="p-6">
-          {!smr ? (
+          {loadError ? (
+            <ErrorState message={loadError} onRetry={retrySmr} />
+          ) : smrLoading || !smr ? (
             <div className="space-y-2">
               {Array.from({ length: 3 }).map((_, i) => (
                 <div
@@ -245,131 +289,374 @@ function SmrModal({
             </div>
           ) : (
             <>
-              <div className="mb-4">{statusPill(smr.status)}</div>
+              <div className="mb-4 flex items-center gap-2">
+                {statusPill(smr.status)}
+                {smr.subcontractor && (
+                  <span className="text-xs font-semibold text-slate-500">
+                    Sous-traitant : {smr.subcontractor.name}
+                  </span>
+                )}
+              </div>
 
-              <table className="w-full text-sm mb-4">
-                <thead>
-                  <tr className="text-xs text-slate-400 border-b border-slate-100">
-                    <th className="text-left font-medium py-2">Code</th>
-                    <th className="text-left font-medium py-2">Description</th>
-                    <th className="text-right font-medium py-2">Demandé</th>
-                    <th className="text-right font-medium py-2">Alloué</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {smr.items.map((it) => {
-                    const shortage = shortages?.find(
-                      (s) => s.hardwareProductId === it.hardwareProductId,
-                    );
-                    return (
-                      <tr key={it.id} className="border-b border-slate-50">
-                        <td className="py-2 font-mono text-[#124191]">
-                          {it.hardwareProduct.partNumber}
-                        </td>
-                        <td className="py-2">{it.hardwareProduct.name}</td>
-                        <td className="py-2 text-right font-mono">
-                          {it.requestedQuantity}
-                        </td>
-                        <td className="py-2 text-right font-mono">
-                          {shortage ? (
-                            <span className="text-red-600">
-                              {shortage.available} dispo
-                            </span>
-                          ) : (
-                            it.allocatedQuantity || "—"
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-
-              {error && (
-                <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">
-                  {error}
-                </div>
-              )}
-
-              {shortages && (
-                <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mb-4 text-sm text-amber-800">
-                  Stock insuffisant pour {shortages.length} référence(s) (voir
-                  colonne "Alloué" ci-dessus).
-                  <button
-                    onClick={() => handleApprove(true)}
-                    disabled={busy}
-                    className="block mt-2 text-xs font-semibold text-amber-900 underline"
-                  >
-                    Approuver quand même avec allocation partielle
-                  </button>
-                </div>
-              )}
-
-              {smr.status === "Pending" && (
+              {smr.subcontractor ? (
+                <SmrSubcontractorReview
+                  smr={smr}
+                  error={error}
+                  shortages={shortages}
+                  busy={busy}
+                  onApprove={handleApprove}
+                  onReject={handleReject}
+                  rejecting={rejecting}
+                  setRejecting={setRejecting}
+                  reason={reason}
+                  setReason={setReason}
+                  actor={actor}
+                  setActor={setActor}
+                />
+              ) : (
                 <>
-                  <input
-                    value={actor}
-                    onChange={(e) => setActor(e.target.value)}
-                    placeholder="Votre nom (superviseur)"
-                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-3"
-                  />
+                  <table className="w-full text-sm mb-4">
+                    <thead>
+                      <tr className="text-xs text-slate-400 border-b border-slate-100">
+                        <th className="text-left font-medium py-2">Code</th>
+                        <th className="text-left font-medium py-2">
+                          Description
+                        </th>
+                        <th className="text-right font-medium py-2">Demandé</th>
+                        <th className="text-right font-medium py-2">Alloué</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {smr.items.map((it) => {
+                        const shortage = shortages?.find(
+                          (s) => s.hardwareProductId === it.hardwareProductId,
+                        );
+                        return (
+                          <tr key={it.id} className="border-b border-slate-50">
+                            <td className="py-2 font-mono text-[#124191]">
+                              {it.hardwareProduct.partNumber}
+                            </td>
+                            <td className="py-2">{it.hardwareProduct.name}</td>
+                            <td className="py-2 text-right font-mono">
+                              {it.requestedQuantity}
+                            </td>
+                            <td className="py-2 text-right font-mono">
+                              {shortage ? (
+                                <span className="text-red-600">
+                                  {shortage.available} dispo
+                                </span>
+                              ) : (
+                                it.allocatedQuantity || "—"
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
 
-                  {rejecting && (
-                    <input
-                      value={reason}
-                      onChange={(e) => setReason(e.target.value)}
-                      placeholder="Motif du rejet (optionnel)"
-                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-3"
-                    />
+                  {error && (
+                    <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">
+                      {error}
+                    </div>
                   )}
 
-                  <div className="flex gap-2 justify-end">
-                    {!rejecting ? (
-                      <>
-                        <button
-                          onClick={() => setRejecting(true)}
-                          disabled={busy}
-                          className="px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 rounded-lg"
-                        >
-                          Rejeter
-                        </button>
-                        <LoadingButton
-                          onClick={() => handleApprove(false)}
-                          disabled={busy}
-                          loading={busy}
-                          loadingText="Traitement…"
-                          className="px-4 py-2 text-sm font-semibold text-white bg-[#124191] rounded-lg hover:bg-[#0d3373] disabled:opacity-60"
-                        >
-                          Approuver
-                        </LoadingButton>
-                      </>
-                    ) : (
-                      <>
-                        <LoadingButton
-                          onClick={() => setRejecting(false)}
-                          disabled={busy}
-                          loading={busy}
-                          loadingText="Annulation…"
-                          className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
-                        >
-                          Annuler
-                        </LoadingButton>
-                        <button
-                          onClick={handleReject}
-                          disabled={busy}
-                          className="px-4 py-2 text-sm font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-60"
-                        >
-                          {busy ? "Rejet…" : "Confirmer le rejet"}
-                        </button>
-                      </>
-                    )}
-                  </div>
+                  {shortages && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mb-4 text-sm">
+                      <p className="font-semibold mb-2 text-amber-800">
+                        Stock insuffisant pour {shortages.length} référence(s) :
+                      </p>
+                      <ul className="text-xs space-y-1 mb-2 max-h-40 overflow-y-auto">
+                        {shortages.map((s: any) => (
+                          <li
+                            key={s.partNumber}
+                            className="font-mono text-amber-900"
+                          >
+                            {s.partNumber} — demandé {s.requested}, disponible{" "}
+                            {s.available}
+                          </li>
+                        ))}
+                      </ul>
+                      <button
+                        onClick={() => handleApprove(true)}
+                        disabled={busy}
+                        className="text-xs font-semibold text-amber-900 underline"
+                      >
+                        Approuver quand même avec allocation partielle
+                      </button>
+                    </div>
+                  )}
+
+                  {smr.status === "Pending" && (
+                    <>
+                      <input
+                        value={actor}
+                        onChange={(e) => setActor(e.target.value)}
+                        placeholder="Votre nom (superviseur)"
+                        className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-3"
+                      />
+
+                      {rejecting && (
+                        <input
+                          value={reason}
+                          onChange={(e) => setReason(e.target.value)}
+                          placeholder="Motif du rejet (optionnel)"
+                          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-3"
+                        />
+                      )}
+
+                      <div className="flex gap-2 justify-end">
+                        {!rejecting ? (
+                          <>
+                            <button
+                              onClick={() => setRejecting(true)}
+                              disabled={busy}
+                              className="px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 rounded-lg"
+                            >
+                              Rejeter
+                            </button>
+                            <LoadingButton
+                              onClick={() => handleApprove(false)}
+                              disabled={busy}
+                              loading={busy}
+                              loadingText="Traitement…"
+                              className="px-4 py-2 text-sm font-semibold text-white bg-[#124191] rounded-lg hover:bg-[#0d3373] disabled:opacity-60"
+                            >
+                              Approuver
+                            </LoadingButton>
+                          </>
+                        ) : (
+                          <>
+                            <LoadingButton
+                              onClick={() => setRejecting(false)}
+                              disabled={busy}
+                              loading={busy}
+                              loadingText="Annulation…"
+                              className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
+                            >
+                              Annuler
+                            </LoadingButton>
+                            <button
+                              onClick={handleReject}
+                              disabled={busy}
+                              className="px-4 py-2 text-sm font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-60"
+                            >
+                              {busy ? "Rejet…" : "Confirmer le rejet"}
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </>
+                  )}
                 </>
               )}
             </>
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// Composant pour l'étape de revue d'une SMR par un sous-traitant, avec ajustement des quantités confirmées et approbation/rejet.
+function SmrSubcontractorReview({
+  smr,
+  error,
+  shortages,
+  busy,
+  onApprove,
+  onReject,
+  rejecting,
+  setRejecting,
+  reason,
+  setReason,
+  actor,
+  setActor,
+}: {
+  smr: any;
+  error: string | null;
+  shortages: any[] | null;
+  busy: boolean;
+  onApprove: (
+    force: boolean,
+    overrides?: { siteItemId: number; confirmedQuantity: number }[],
+  ) => void;
+  onReject: () => void;
+  rejecting: boolean;
+  setRejecting: (v: boolean) => void;
+  reason: string;
+  setReason: (v: string) => void;
+  actor: string;
+  setActor: (v: string) => void;
+}) {
+  const [confirmed, setConfirmed] = useState<Record<number, number>>(() =>
+    Object.fromEntries(
+      (smr.smrRequestSiteItems ?? []).map((it: any) => [
+        it.id,
+        it.requestedQuantity,
+      ]),
+    ),
+  );
+
+  const bySite = React.useMemo(() => {
+    const map = new Map<string, any[]>();
+    (smr.smrRequestSiteItems ?? []).forEach((it: any) => {
+      const key = it.site.siteName;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(it);
+    });
+    return map;
+  }, [smr]);
+
+  function handleApproveClick(force: boolean) {
+    const overrides = Object.entries(confirmed).map(([id, qty]) => ({
+      siteItemId: parseInt(id),
+      confirmedQuantity: qty,
+    }));
+    onApprove(force, overrides);
+  }
+
+  return (
+    <div>
+      <p className="text-xs text-slate-400 mb-3">
+        Comparez ce qui a été importé du fichier Excel (colonne "Sur le papier")
+        avec ce que vous constatez réellement sur site, puis ajustez la quantité
+        confirmée si nécessaire.
+      </p>
+
+      <div className="max-h-64 overflow-y-auto mb-4">
+        {Array.from(bySite.entries()).map(([siteName, items]) => (
+          <div key={siteName} className="mb-3">
+            <div className="text-xs font-bold text-[#0F172A] bg-slate-50 px-2 py-1.5 rounded-t-md">
+              {siteName}
+            </div>
+            <table className="w-full text-sm border border-t-0 border-slate-100 rounded-b-md">
+              <thead>
+                <tr className="text-[10px] text-slate-400 border-b border-slate-100">
+                  <th className="text-left font-medium px-2 py-1.5">Code</th>
+                  <th className="text-right font-medium px-2 py-1.5">
+                    Sur le papier
+                  </th>
+                  <th className="text-right font-medium px-2 py-1.5">
+                    Confirmé
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((it: any) => (
+                  <tr key={it.id} className="border-b border-slate-50">
+                    <td className="px-2 py-1.5">
+                      <span className="font-mono text-[#124191] text-xs">
+                        {it.hardwareProduct.partNumber}
+                      </span>
+                      <span className="block text-slate-500 text-[11px]">
+                        {it.hardwareProduct.name}
+                      </span>
+                    </td>
+
+                    <td className="px-2 py-1.5 text-right font-mono text-slate-400 text-xs">
+                      {it.requestedQuantity}
+                    </td>
+                    <td className="px-2 py-1.5 text-right">
+                      <input
+                        type="number"
+                        min={0}
+                        max={it.requestedQuantity}
+                        value={confirmed[it.id] ?? it.requestedQuantity}
+                        onChange={(e) =>
+                          setConfirmed((prev) => ({
+                            ...prev,
+                            [it.id]: parseInt(e.target.value) || 0,
+                          }))
+                        }
+                        className="w-16 border border-slate-200 rounded px-1.5 py-0.5 text-xs font-mono text-right"
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ))}
+      </div>
+
+      {error && (
+        <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">
+          {error}
+        </div>
+      )}
+      {shortages && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mb-4 text-sm text-amber-800">
+          Stock insuffisant pour {shortages.length} référence(s).
+          <button
+            onClick={() => handleApproveClick(true)}
+            disabled={busy}
+            className="block mt-2 text-xs font-semibold text-amber-900 underline"
+          >
+            Approuver quand même avec allocation partielle
+          </button>
+        </div>
+      )}
+
+      {smr.status === "Pending" && (
+        <>
+          <input
+            value={actor}
+            onChange={(e) => setActor(e.target.value)}
+            placeholder="Votre nom (superviseur)"
+            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-3"
+          />
+          {rejecting && (
+            <input
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Motif du rejet (optionnel)"
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-3"
+            />
+          )}
+          <div className="flex gap-2 justify-end">
+            {!rejecting ? (
+              <>
+                <button
+                  onClick={() => setRejecting(true)}
+                  disabled={busy}
+                  className="px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 rounded-lg"
+                >
+                  Rejeter
+                </button>
+                <LoadingButton
+                  onClick={() => handleApproveClick(false)}
+                  disabled={busy}
+                  loading={busy}
+                  loadingText="Traitement…"
+                  className="px-4 py-2 text-sm font-semibold text-white bg-[#124191] rounded-lg hover:bg-[#0d3373] disabled:opacity-60"
+                >
+                  Approuver
+                </LoadingButton>
+              </>
+            ) : (
+              <>
+                <LoadingButton
+                  onClick={() => setRejecting(false)}
+                  disabled={busy}
+                  loading={busy}
+                  loadingText="Annulation…"
+                  className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
+                >
+                  Annuler
+                </LoadingButton>
+                <button
+                  onClick={onReject}
+                  disabled={busy}
+                  className="px-4 py-2 text-sm font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-60"
+                >
+                  {busy ? "Rejet…" : "Confirmer le rejet"}
+                </button>
+              </>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }

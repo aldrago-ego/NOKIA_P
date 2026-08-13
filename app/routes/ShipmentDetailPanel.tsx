@@ -1,9 +1,11 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import * as XLSX from "xlsx";
 import { apiFetch } from "../apiFetch";
 import LoadingButton from "../Component/LoadingButton";
 import { useProject } from "./project";
 import { useAuth } from "./authContext";
+import { useFetchState } from "../useFetchState";
+import ErrorState from "../Component/ErrorState";
 
 const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:5000/api";
 
@@ -26,17 +28,19 @@ interface ShipmentDetail extends ShipmentListItem {
   approvedBy: string | null;
   approvalDate: string | null;
   materials: {
-    id: number;
+    id: number; // si présent dans ta version actuelle, garde-le
     partNumber: string;
     name: string;
     quantity: number;
     defectiveQuantity: number;
     serialNumber: string;
+    expectedQuantity?: number | null; // NOUVEAU
   }[];
   expectedMaterials: {
     partNumber: string;
     description: string;
     expectedQuantity: number;
+    category?: string;
   }[]; // NOUVEAU
 }
 
@@ -45,29 +49,20 @@ export default function ShipmentDetailPanel({
 }: {
   projectId: number;
 }) {
-  const [shipments, setShipments] = useState<ShipmentListItem[] | null>(null);
-  const [error, setError] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
 
-  useEffect(() => {
-    setShipments(null);
-    setError(false);
-    const controller = new AbortController();
-    apiFetch(`${API_BASE}/DeliveryNotes?projectId=${projectId}`, {
-      signal: controller.signal,
-    })
-      .then((res) => res.json())
-      .then(setShipments)
-      .catch((err) => err.name !== "AbortError" && setError(true));
-    return () => controller.abort();
-  }, [projectId]);
-
-  function refreshList() {
-    apiFetch(`${API_BASE}/DeliveryNotes?projectId=${projectId}`)
-      .then((res) => res.json())
-      .then(setShipments)
-      .catch(() => {});
-  }
+  const {
+    data: shipments,
+    loading: shipmentsLoading,
+    error,
+    retry: refreshList,
+  } = useFetchState<ShipmentListItem[]>(
+    (signal) =>
+      apiFetch(`${API_BASE}/DeliveryNotes?projectId=${projectId}`, {
+        signal,
+      }).then((res) => res.json()),
+    [projectId],
+  );
 
   return (
     <>
@@ -83,7 +78,9 @@ export default function ShipmentDetailPanel({
         </button>
       </div>
       <div className="table-wrap text-black">
-        {!shipments ? (
+        {error ? (
+          <ErrorState message={error} onRetry={refreshList} />
+        ) : shipmentsLoading || !shipments ? (
           <div className="space-y-2 p-1">
             {Array.from({ length: 4 }).map((_, i) => (
               <div
@@ -92,10 +89,6 @@ export default function ShipmentDetailPanel({
               />
             ))}
           </div>
-        ) : error ? (
-          <p className="text-sm text-red-400 text-center py-6">
-            Impossible de charger les shipments.
-          </p>
         ) : shipments.length === 0 ? (
           <p className="text-sm text-slate-400 text-center py-6">
             Aucun shipment enregistré pour ce projet.
@@ -214,18 +207,21 @@ export function ShipmentModal({
   onConfirmed: () => void;
 }) {
   const { isElevated } = useAuth();
-  const [shipment, setShipment] = useState<ShipmentDetail | null>(null);
-  const [error, setError] = useState(false);
-
-  useEffect(() => {
-    apiFetch(`${API_BASE}/DeliveryNotes/${shipmentId}`)
-      .then((res) => {
-        if (!res.ok) throw new Error();
-        return res.json();
-      })
-      .then(setShipment)
-      .catch(() => setError(true));
-  }, [shipmentId]);
+  const {
+    data: shipment,
+    loading: shipmentLoading,
+    error,
+    retry: retryShipment,
+  } = useFetchState<ShipmentDetail>(
+    async (signal) => {
+      const res = await apiFetch(`${API_BASE}/DeliveryNotes/${shipmentId}`, {
+        signal,
+      });
+      if (!res.ok) throw new Error();
+      return res.json();
+    },
+    [shipmentId],
+  );
 
   return (
     <div
@@ -254,10 +250,8 @@ export function ShipmentModal({
 
         <div className="p-6">
           {error ? (
-            <p className="text-sm text-red-500">
-              Impossible de charger ce shipment.
-            </p>
-          ) : !shipment ? (
+            <ErrorState message={error} onRetry={retryShipment} />
+          ) : shipmentLoading || !shipment ? (
             <div className="space-y-2">
               {Array.from({ length: 4 }).map((_, i) => (
                 <div
@@ -305,7 +299,7 @@ export function ShipmentModal({
                   mono
                 />
               </div>
-              
+
               {shipment.status === "Pending" && isElevated && (
                 <CancelShipmentButton
                   shipment={shipment}
@@ -360,34 +354,29 @@ function DeliveredMaterialsTable({ shipment }: { shipment: ShipmentDetail }) {
   // Regroupe les lignes par code matériel — la donnée brute reste 1 ligne par
   // numéro de série (utile en base), mais l'affichage montre la quantité totale.
   const grouped = React.useMemo(() => {
-    const map = new Map<
-      string,
-      {
-        partNumber: string;
-        name: string;
-        quantity: number;
-        defectiveQuantity: number;
-        count: number;
+  const map = new Map<string, { partNumber: string; name: string; quantity: number; defectiveQuantity: number; count: number; expectedQuantity: number | null }>();
+  shipment.materials.forEach((m) => {
+    const existing = map.get(m.partNumber);
+    if (existing) {
+      existing.quantity += m.quantity;
+      existing.defectiveQuantity += m.defectiveQuantity;
+      existing.count += 1;
+      if (m.expectedQuantity != null) {
+        existing.expectedQuantity = (existing.expectedQuantity ?? 0) + m.expectedQuantity;
       }
-    >();
-    shipment.materials.forEach((m) => {
-      const existing = map.get(m.partNumber);
-      if (existing) {
-        existing.quantity += m.quantity;
-        existing.defectiveQuantity += m.defectiveQuantity;
-        existing.count += 1;
-      } else {
-        map.set(m.partNumber, {
-          partNumber: m.partNumber,
-          name: m.name,
-          quantity: m.quantity,
-          defectiveQuantity: m.defectiveQuantity,
-          count: 1,
-        });
-      }
-    });
-    return Array.from(map.values());
-  }, [shipment.materials]);
+    } else {
+      map.set(m.partNumber, {
+        partNumber: m.partNumber,
+        name: m.name,
+        quantity: m.quantity,
+        defectiveQuantity: m.defectiveQuantity,
+        count: 1,
+        expectedQuantity: m.expectedQuantity ?? null,
+      });
+    }
+  });
+  return Array.from(map.values());
+}, [shipment.materials]); 
 
   return (
     <div>
@@ -405,8 +394,10 @@ function DeliveredMaterialsTable({ shipment }: { shipment: ShipmentDetail }) {
             <tr className="text-xs text-slate-400 uppercase tracking-wide border-b border-slate-100">
               <th className="text-left font-medium py-2">Code</th>
               <th className="text-left font-medium py-2">Description</th>
-              <th className="text-right font-medium py-2">Qté</th>
-              <th className="text-right font-medium py-2">Défectueux</th>
+              <th className="text-right font-medium py-2 px-2 whitespace-nowrap">Qté</th>
+<th className="text-right font-medium py-2 px-2 whitespace-nowrap">Attendu</th>
+<th className="text-right font-medium py-2 px-2 whitespace-nowrap">Écart</th>
+<th className="text-right font-medium py-2 px-2 whitespace-nowrap">Défectueux</th>
             </tr>
           </thead>
           <tbody className="text-[#0F172A]">
@@ -423,6 +414,23 @@ function DeliveredMaterialsTable({ shipment }: { shipment: ShipmentDetail }) {
                 </td>
                 <td className="py-2">{m.name}</td>
                 <td className="py-2 text-right font-mono">{m.quantity}</td>
+                <td className="py-2 text-right font-mono text-slate-400">
+                  {m.expectedQuantity ?? "—"}
+                </td>
+                <td className="py-2 text-right font-mono">
+                  {m.expectedQuantity != null ? (
+                    (() => {
+                      const diff = m.quantity - m.expectedQuantity;
+                      if (diff === 0)
+                        return <span className="text-emerald-600">0</span>;
+                      if (diff > 0)
+                        return <span className="text-[#124191]">+{diff}</span>;
+                      return <span className="text-red-600">{diff}</span>;
+                    })()
+                  ) : (
+                    <span className="text-slate-300">—</span>
+                  )}
+                </td>
                 <td className="py-2 text-right font-mono text-red-600">
                   {m.defectiveQuantity || "—"}
                 </td>
@@ -451,20 +459,28 @@ interface AssetLine {
   isManuallyCounted: boolean;
 }
 
+// Cherche EMPTY_LINE
 const EMPTY_LINE: AssetLine = {
-  partNumber: "",
-  productName: "",
-  materialGroup: "",
+  partNumber: '',
+  productName: '',
+  materialGroup: '',
   isNewProduct: false,
-  domain: "RAN",
-  isSerialized: true,
+  domain: 'RAN',
+  isSerialized: false,  
   expectedQty: 0,
   receivedQty: 0,
-  scannedSerial: "",
+  scannedSerial: '',
   isManuallyCounted: false,
 };
 
 const DOMAINS = ["RAN", "Microwave", "Energy", "Core", "Consumables"];
+function normalizeCategory(raw?: string | null): string {
+  if (!raw) return "RAN";
+  const found = DOMAINS.find(
+    (d) => d.toLowerCase() === raw.trim().toLowerCase(),
+  );
+  return found ?? "RAN"; // si la valeur ne matche aucun domaine connu, retombe sur RAN par défaut
+}
 
 function ConfirmDeliveryForm({
   shipment,
@@ -482,7 +498,8 @@ function ConfirmDeliveryForm({
         partNumber: m.partNumber,
         productName: m.description,
         expectedQty: m.expectedQuantity,
-        receivedQty: m.expectedQuantity, // suppose reçu conforme par défaut ; l'admin ajuste si écart
+        receivedQty: m.expectedQuantity,
+        domain: normalizeCategory(m.category), // NOUVEAU — pré-rempli depuis le fichier Excel
       }));
     }
     return [{ ...EMPTY_LINE }];

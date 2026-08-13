@@ -1,7 +1,9 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useState } from "react";
 import { apiFetch } from "../apiFetch";
 import { API_BASE } from "../config";
 import { useProject } from "./project";
+import { useFetchState } from "../useFetchState";
+import ErrorState from "../Component/ErrorState";
 
 interface ActivityLog {
   id: number;
@@ -33,45 +35,47 @@ const PAGE_SIZE = 25;
 export default function HistoryPage() {
   const { selectedProjectId, selectedProject } = useProject();
 
-  const [logs, setLogs] = useState<ActivityLog[] | null>(null);
-  const [total, setTotal] = useState(0);
-  const [totalPages, setTotalPages] = useState(1);
   const [page, setPage] = useState(1);
-
-  const [types, setTypes] = useState<string[] | null>(null);
   const [selectedType, setSelectedType] = useState<string>("");
 
-  useEffect(() => {
-    if (selectedProjectId == null) return;
-    apiFetch(`${API_BASE}/ActivityLogs/types?projectId=${selectedProjectId}`)
-      .then((r) => r.json())
-      .then(setTypes)
-      .catch(() => setTypes([]));
-  }, [selectedProjectId]);
+  const { data: types } = useFetchState<string[] | null>(
+    async (signal) => {
+      if (selectedProjectId == null) return null;
+      const res = await apiFetch(
+        `${API_BASE}/ActivityLogs/types?projectId=${selectedProjectId}`,
+        { signal },
+      );
+      return res.json();
+    },
+    [selectedProjectId],
+  );
 
-  const load = useCallback(() => {
-    if (selectedProjectId == null) return;
-    setLogs(null);
-    const params = new URLSearchParams({
-      projectId: String(selectedProjectId),
-      page: String(page),
-      pageSize: String(PAGE_SIZE),
-    });
-    if (selectedType) params.set("type", selectedType);
+  const {
+    data: page_,
+    loading: logsLoading,
+    error: logsError,
+    retry: retryLogs,
+  } = useFetchState<{ items: ActivityLog[]; total: number; totalPages: number } | null>(
+    async (signal) => {
+      if (selectedProjectId == null) return null;
+      const params = new URLSearchParams({
+        projectId: String(selectedProjectId),
+        page: String(page),
+        pageSize: String(PAGE_SIZE),
+      });
+      if (selectedType) params.set("type", selectedType);
 
-    apiFetch(`${API_BASE}/ActivityLogs/history?${params}`)
-      .then((r) => r.json())
-      .then((data) => {
-        setLogs(data.items);
-        setTotal(data.total);
-        setTotalPages(data.totalPages);
-      })
-      .catch(() => setLogs([]));
-  }, [selectedProjectId, page, selectedType]);
+      const res = await apiFetch(`${API_BASE}/ActivityLogs/history?${params}`, {
+        signal,
+      });
+      return res.json();
+    },
+    [selectedProjectId, page, selectedType],
+  );
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  const logs = page_?.items ?? null;
+  const total = page_?.total ?? 0;
+  const totalPages = page_?.totalPages ?? 1;
 
   function handleTypeChange(value: string) {
     setSelectedType(value);
@@ -116,7 +120,9 @@ export default function HistoryPage() {
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-        {!logs ? (
+        {logsError ? (
+          <ErrorState message={logsError} onRetry={retryLogs} />
+        ) : logsLoading || !logs ? (
           <div className="p-3 space-y-2">
             {Array.from({ length: 8 }).map((_, i) => (
               <div

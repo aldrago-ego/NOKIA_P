@@ -1,6 +1,8 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import { apiFetch } from '../apiFetch';
 import { useAuth } from './authContext';
+import { useFetchState } from '../useFetchState';
+import ErrorState from '../Component/ErrorState';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:5000/api';
 
@@ -20,18 +22,20 @@ interface Loan {
 export default function LoansPanel({ projectId }: { projectId: number }) {
   const { isAdmin } = useAuth();
   const [tab, setTab] = useState<'Loaned' | 'Borrowed'>('Loaned');
-  const [loans, setLoans] = useState<Loan[] | null>(null);
   const [showBorrowForm, setShowBorrowForm] = useState(false);
 
-  const load = useCallback(() => {
-    setLoans(null);
-    apiFetch(`${API_BASE}/StockLoans?projectId=${projectId}&direction=${tab}`)
-      .then((r) => r.json())
-      .then(setLoans)
-      .catch(() => setLoans([]));
-  }, [projectId, tab]);
-
-  useEffect(() => { load(); }, [load]);
+  const {
+    data: loans,
+    loading: loansLoading,
+    error,
+    retry: load,
+  } = useFetchState<Loan[]>(
+    (signal) =>
+      apiFetch(`${API_BASE}/StockLoans?projectId=${projectId}&direction=${tab}`, {
+        signal,
+      }).then((r) => r.json()),
+    [projectId, tab],
+  );
 
   async function handleReturn(id: number) {
     const res = await apiFetch(`${API_BASE}/StockLoans/${id}/return`, {
@@ -60,7 +64,9 @@ export default function LoansPanel({ projectId }: { projectId: number }) {
         )}
       </div>
 
-      {!loans ? (
+      {error ? (
+        <ErrorState message={error} onRetry={load} />
+      ) : loansLoading || !loans ? (
         <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-11 bg-slate-100 rounded animate-pulse" />)}</div>
       ) : loans.length === 0 ? (
         <p className="text-sm text-slate-400 text-center py-8">Aucun {tab === 'Loaned' ? 'prêt' : 'emprunt'} enregistré.</p>
@@ -96,7 +102,6 @@ export default function LoansPanel({ projectId }: { projectId: number }) {
 }
 
 function BorrowForm({ projectId, onClose, onCreated }: { projectId: number; onClose: () => void; onCreated: () => void }) {
-  const [warehouseId, setWarehouseId] = useState<number | null>(null);
   const [partyName, setPartyName] = useState('');
   const [partNumber, setPartNumber] = useState('');
   const [description, setDescription] = useState('');
@@ -105,9 +110,15 @@ function BorrowForm({ projectId, onClose, onCreated }: { projectId: number; onCl
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    apiFetch(`${API_BASE}/Warehouses`).then((r) => r.json()).then((data) => setWarehouseId(data[0]?.id ?? null));
-  }, []);
+  const {
+    data: warehouses,
+    error: warehousesError,
+    retry: retryWarehouses,
+  } = useFetchState<{ id: number }[]>(
+    (signal) => apiFetch(`${API_BASE}/Warehouses`, { signal }).then((r) => r.json()),
+    [],
+  );
+  const warehouseId = warehouses?.[0]?.id ?? null;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -141,6 +152,14 @@ function BorrowForm({ projectId, onClose, onCreated }: { projectId: number; onCl
         </div>
         <form onSubmit={handleSubmit}>
           {error && <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">{error}</div>}
+          {warehousesError && (
+            <div className="flex items-center justify-between gap-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
+              <span>Impossible de déterminer l'entrepôt par défaut.</span>
+              <button type="button" onClick={retryWarehouses} className="font-semibold underline flex-shrink-0">
+                Réessayer
+              </button>
+            </div>
+          )}
           <input value={partyName} onChange={(e) => setPartyName(e.target.value)} placeholder="Emprunté auprès de…" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-3" />
           <input value={partNumber} onChange={(e) => setPartNumber(e.target.value)} placeholder="Code matériel" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-3" />
           <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-3" />

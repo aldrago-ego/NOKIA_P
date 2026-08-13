@@ -1,7 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { apiFetch } from '../apiFetch';
 import { API_BASE } from '../config';
 import { useProject } from './project';
+import { useFetchState } from '../useFetchState';
+import ErrorState from '../Component/ErrorState';
 
 interface Deployment {
   id: number;
@@ -15,16 +17,24 @@ interface Deployment {
 
 export default function TraceabilityPage() {
   const { selectedProjectId, selectedProject } = useProject();
-  const [deployments, setDeployments] = useState<Deployment[] | null>(null);
   const [search, setSearch] = useState('');
 
-  useEffect(() => {
-    if (selectedProjectId == null) return;
-    apiFetch(`${API_BASE}/SmrRequests/deployments?projectId=${selectedProjectId}`)
-      .then((r) => r.json())
-      .then(setDeployments)
-      .catch(() => setDeployments([]));
-  }, [selectedProjectId]);
+  const {
+    data: deployments,
+    loading: deploymentsLoading,
+    error: deploymentsError,
+    retry: retryDeployments,
+  } = useFetchState<Deployment[] | null>(
+    async (signal) => {
+      if (selectedProjectId == null) return null;
+      const res = await apiFetch(
+        `${API_BASE}/SmrRequests/deployments?projectId=${selectedProjectId}`,
+        { signal },
+      );
+      return res.json();
+    },
+    [selectedProjectId],
+  );
 
   const grouped = React.useMemo(() => {
     if (!deployments) return new Map<string, Deployment[]>();
@@ -63,7 +73,9 @@ export default function TraceabilityPage() {
         className="w-full max-w-md border border-slate-200 rounded-lg px-3 py-2  mb-5 text-black"
       />
 
-      {!deployments ? (
+      {deploymentsError ? (
+        <ErrorState message={deploymentsError} onRetry={retryDeployments} />
+      ) : deploymentsLoading || !deployments ? (
         <div className="space-y-2">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-14 bg-white border border-slate-200 rounded-xl animate-pulse" />)}</div>
       ) : grouped.size === 0 ? (
         <p className="text-sm text-slate-400 text-center py-10">Aucun matériel déployé pour ce projet.</p>

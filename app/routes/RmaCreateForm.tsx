@@ -1,5 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {apiFetch} from '../apiFetch';
+import { useFetchState } from '../useFetchState';
+import ErrorState from '../Component/ErrorState';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:5000/api';
 
@@ -15,25 +17,38 @@ export default function RmaCreateForm({
   onClose: () => void;
   onCreated: () => void;
 }) {
-  const [warehouseId, setWarehouseId] = useState<number | null>(null);
-  const [defective, setDefective] = useState<DefectiveAsset[] | null>(null);
   const [rmaNumber, setRmaNumber] = useState('');
   const [notes, setNotes] = useState('');
   const [lines, setLines] = useState<DraftLine[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    apiFetch(`${API_BASE}/Warehouses`).then((r) => r.json()).then((data) => setWarehouseId(data[0]?.id ?? null));
-  }, []);
+  const {
+    data: warehouses,
+    error: warehousesError,
+    retry: retryWarehouses,
+  } = useFetchState<{ id: number }[]>(
+    (signal) => apiFetch(`${API_BASE}/Warehouses`, { signal }).then((r) => r.json()),
+    [],
+  );
+  const warehouseId = warehouses?.[0]?.id ?? null;
 
-  useEffect(() => {
-    if (warehouseId == null) return;
-    apiFetch(`${API_BASE}/PhysicalAssets/defective?warehouseId=${warehouseId}`)
-      .then((r) => r.json())
-      .then(setDefective)
-      .catch(() => setDefective([]));
-  }, [warehouseId]);
+  const {
+    data: defective,
+    loading: defectiveLoading,
+    error: defectiveError,
+    retry: retryDefective,
+  } = useFetchState<DefectiveAsset[] | null>(
+    async (signal) => {
+      if (warehouseId == null) return null;
+      const res = await apiFetch(
+        `${API_BASE}/PhysicalAssets/defective?warehouseId=${warehouseId}`,
+        { signal },
+      );
+      return res.json();
+    },
+    [warehouseId],
+  );
 
   function addLine(asset: DefectiveAsset) {
     setLines((prev) => [
@@ -91,6 +106,12 @@ export default function RmaCreateForm({
 
         <form onSubmit={handleSubmit} className="p-6">
           {error && <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-4">{error}</div>}
+          {warehousesError && (
+            <div className="flex items-center justify-between gap-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
+              <span>Impossible de déterminer l'entrepôt par défaut.</span>
+              <button type="button" onClick={retryWarehouses} className="font-semibold underline flex-shrink-0">Réessayer</button>
+            </div>
+          )}
 
           <label className="block text-xs font-semibold text-slate-500 mb-1.5">N° RMA</label>
           <input value={rmaNumber} onChange={(e) => setRmaNumber(e.target.value)} placeholder="ex : RMA-0091" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono mb-4" />
@@ -100,7 +121,11 @@ export default function RmaCreateForm({
 
           <label className="block text-xs font-semibold text-slate-500 mb-1.5">Matériel défectueux disponible</label>
           <div className="border border-slate-200 rounded-lg max-h-40 overflow-y-auto mb-4">
-            {!defective ? (
+            {defectiveError ? (
+              <div className="p-2">
+                <ErrorState message={defectiveError} onRetry={retryDefective} />
+              </div>
+            ) : defectiveLoading || !defective ? (
               <div className="p-3 text-xs text-slate-400">Chargement…</div>
             ) : available.length === 0 ? (
               <div className="p-3 text-xs text-slate-400">Aucun matériel défectueux disponible.</div>

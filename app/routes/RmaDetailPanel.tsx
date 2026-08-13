@@ -1,7 +1,9 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from './authContext';
 import RmaCreateForm from './RmaCreateForm';
 import { apiFetch } from '../apiFetch';
+import { useFetchState } from '../useFetchState';
+import ErrorState from '../Component/ErrorState';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:5000/api';
 
@@ -26,19 +28,21 @@ function statusPill(status: string) {
 
 export default function RmaDetailPanel({ projectId, limit }: { projectId: number; limit?: number }) {
   const { isAdmin } = useAuth();
-  const [rmas, setRmas] = useState<Rma[] | null>(null);
-  const [error, setError] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [showCreate, setShowCreate] = useState(false);
 
-  const load = useCallback(() => {
-    apiFetch(`${API_BASE}/RmaRequests?projectId=${projectId}`)
-      .then((r) => r.json())
-      .then(setRmas)
-      .catch(() => setError(true));
-  }, [projectId]);
-
-  useEffect(() => { load(); }, [load]);
+  const {
+    data: rmas,
+    loading: rmasLoading,
+    error,
+    retry: load,
+  } = useFetchState<Rma[]>(
+    (signal) =>
+      apiFetch(`${API_BASE}/RmaRequests?projectId=${projectId}`, {
+        signal,
+      }).then((r) => r.json()),
+    [projectId],
+  );
 
   const displayed = limit && rmas ? rmas.slice(0, limit) : rmas;
 
@@ -55,10 +59,10 @@ export default function RmaDetailPanel({ projectId, limit }: { projectId: number
         </div>
       )}
 
-      {!displayed ? (
+      {error ? (
+        <ErrorState message={error} onRetry={load} />
+      ) : rmasLoading || !displayed ? (
         <div className="space-y-2 p-1">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-11 bg-slate-100 rounded animate-pulse" />)}</div>
-      ) : error ? (
-        <p className="text-sm text-red-400 text-center py-6">Impossible de charger les RMA.</p>
       ) : displayed.length === 0 ? (
         <p className="text-sm text-slate-400 text-center py-6">Aucune RMA pour ce projet.</p>
       ) : (
@@ -95,15 +99,22 @@ export default function RmaDetailPanel({ projectId, limit }: { projectId: number
 
 function RmaModal({ rmaId, onClose, onDone }: { rmaId: number; onClose: () => void; onDone: () => void }) {
   const { isAdmin } = useAuth();
-  const [rma, setRma] = useState<any>(null);
+  // erreur de mutation (expédition/clôture/annulation) — distincte de l'erreur de chargement
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [courierRef, setCourierRef] = useState('');
   const [actor, setActor] = useState('');
 
-  useEffect(() => {
-    apiFetch(`${API_BASE}/RmaRequests/${rmaId}`).then((r) => r.json()).then(setRma).catch(() => setError('Impossible de charger cette RMA.'));
-  }, [rmaId]);
+  const {
+    data: rma,
+    loading: rmaLoading,
+    error: loadError,
+    retry: retryRma,
+  } = useFetchState<any>(
+    (signal) =>
+      apiFetch(`${API_BASE}/RmaRequests/${rmaId}`, { signal }).then((r) => r.json()),
+    [rmaId],
+  );
 
   async function handleShip() {
     setBusy(true);
@@ -160,7 +171,9 @@ function RmaModal({ rmaId, onClose, onDone }: { rmaId: number; onClose: () => vo
         </div>
 
         <div className="p-6 text-sm text-black">
-          {!rma ? (
+          {loadError ? (
+            <ErrorState message={loadError} onRetry={retryRma} />
+          ) : rmaLoading || !rma ? (
             <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-6 bg-slate-100 rounded animate-pulse" />)}</div>
           ) : (
             <>

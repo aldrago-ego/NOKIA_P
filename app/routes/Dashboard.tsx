@@ -5,6 +5,11 @@ import SmrDetailPanel from "./SmrDetailPanel";
 import { useNavigate } from "react-router";
 import RmaDetailPanel from "./RmaDetailPanel";
 import { apiFetch } from "../apiFetch";
+import SubcontractorDeploymentPanel from "./SubcontractorDeploymentPanel";
+import DeploymentMatrixPanel from "./DeploymentMatrixPanel";
+import StockSufficiencyPanel from "./StockSufficiencyPanel";
+import { useFetchState } from "../useFetchState";
+import ErrorState from "../Component/ErrorState";
 
 const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:5000/api";
 
@@ -93,17 +98,11 @@ export default function Dashboard() {
   const [projectDropdownOpen, setProjectDropdownOpen] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const [warehouseId, setWarehouseId] = useState<number | null>(null);
   const [stockLines, setStockLines] = useState<any[] | null>(null);
   const [stockSearch, setStockSearch] = useState("");
   const [expandedInventoryDomains, setExpandedInventoryDomains] = useState<
     Set<string>
   >(new Set());
-
-  // ---------- Stats (4 cards) ----------
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [statsError, setStatsError] = useState(false);
-  const [statsLoading, setStatsLoading] = useState(false);
 
   const [openCard, setOpenCard] = useState<CardKey | null>(null);
 
@@ -117,10 +116,6 @@ export default function Dashboard() {
     Record<string, MaterialGroupSummary[]>
   >({});
   const [groupLoading, setGroupLoading] = useState<string | null>(null);
-
-  // ---------- Activités récentes ----------
-  const [activities, setActivities] = useState<ActivityLog[] | null>(null);
-  const [activitiesError, setActivitiesError] = useState(false);
 
   // =========================================================
   // Chargement des projets — une fois, au montage
@@ -150,11 +145,18 @@ export default function Dashboard() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  useEffect(() => {
-    apiFetch(`${API_BASE}/Warehouses`)
-      .then((r) => r.json())
-      .then((data) => setWarehouseId(data[0]?.id ?? null));
-  }, []);
+  // Entrepôt par défaut — fetch auto au montage, dont dépend le chargement (paresseux,
+  // au clic) du panneau Real-Time Inventory ci-dessous.
+  const {
+    data: warehouses,
+    error: warehousesError,
+    retry: retryWarehouses,
+  } = useFetchState<{ id: number }[]>(
+    (signal) =>
+      apiFetch(`${API_BASE}/Warehouses`, { signal }).then((r) => r.json()),
+    [],
+  );
+  const warehouseId = warehouses?.[0]?.id ?? null;
 
   const loadStockLines = useCallback(() => {
     if (stockLines || warehouseId == null) return;
@@ -194,47 +196,49 @@ export default function Dashboard() {
   // =========================================================
   // Chargement des stats + activités, à chaque changement de projet
   // =========================================================
+  const {
+    data: stats,
+    loading: statsLoading,
+    error: statsError,
+    retry: retryStats,
+  } = useFetchState<DashboardStats | null>(
+    async (signal) => {
+      if (selectedProjectId == null) return null;
+      const res = await apiFetch(
+        `${API_BASE}/Dashboard/stats?projectId=${selectedProjectId}`,
+        { signal },
+      );
+      if (!res.ok) throw new Error("stats apiFetch failed");
+      return res.json();
+    },
+    [selectedProjectId],
+  );
+
+  const {
+    data: activities,
+    loading: activitiesLoading,
+    error: activitiesError,
+    retry: retryActivities,
+  } = useFetchState<ActivityLog[] | null>(
+    async (signal) => {
+      if (selectedProjectId == null) return null;
+      const res = await apiFetch(
+        `${API_BASE}/ActivityLogs?projectId=${selectedProjectId}&take=10`,
+        { signal },
+      );
+      return res.json();
+    },
+    [selectedProjectId],
+  );
+
+  // Réinitialise les panneaux ouverts en changeant de projet — les données affichées
+  // ne doivent jamais mélanger deux projets différents
   useEffect(() => {
-    if (selectedProjectId == null) return;
-    const controller = new AbortController();
-
-    setStatsLoading(true);
-    setStatsError(false);
-    apiFetch(`${API_BASE}/Dashboard/stats?projectId=${selectedProjectId}`, {
-      signal: controller.signal,
-    })
-      .then((res) => {
-        if (!res.ok) throw new Error("stats apiFetch failed");
-        return res.json();
-      })
-      .then((data: DashboardStats) => setStats(data))
-      .catch((err) => {
-        if (err.name !== "AbortError") setStatsError(true);
-      })
-      .finally(() => setStatsLoading(false));
-
-    setActivitiesError(false);
-    apiFetch(
-      `${API_BASE}/ActivityLogs?projectId=${selectedProjectId}&take=10`,
-      {
-        signal: controller.signal,
-      },
-    )
-      .then((res) => res.json())
-      .then((data: ActivityLog[]) => setActivities(data))
-      .catch((err) => {
-        if (err.name !== "AbortError") setActivitiesError(true);
-      });
-
-    // Réinitialise les panneaux ouverts en changeant de projet — les données affichées
-    // ne doivent jamais mélanger deux projets différents
     setOpenCard(null);
     setDomainSummary(null);
     setSmrPreview(null);
     setExpandedDomain(null);
     setGroupCache({});
-
-    return () => controller.abort();
   }, [selectedProjectId]);
 
   // =========================================================
@@ -435,14 +439,19 @@ export default function Dashboard() {
               </div>
 
               <div className="mt-3">
-                {statsLoading || !stats ? (
-                  statsError ? (
-                    <span className="text-sm text-red-500">
-                      Erreur de chargement
-                    </span>
-                  ) : (
-                    <span className="inline-block h-7 w-16 bg-slate-200 rounded animate-pulse" />
-                  )
+                {statsError ? (
+                  <span
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      retryStats();
+                    }}
+                    title="Réessayer"
+                    className="text-sm text-red-500 underline decoration-dotted cursor-pointer hover:text-red-600"
+                  >
+                    Erreur de chargement — réessayer
+                  </span>
+                ) : statsLoading || !stats ? (
+                  <span className="inline-block h-7 w-16 bg-slate-200 rounded animate-pulse" />
                 ) : unavailable ? (
                   <span className="text-sm text-slate-400 italic">
                     Non disponible
@@ -503,7 +512,12 @@ export default function Dashboard() {
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-[#124191]/30"
             />
 
-            {!stockLines ? (
+            {!stockLines && warehousesError ? (
+              <ErrorState
+                message="Impossible de déterminer l'entrepôt par défaut."
+                onRetry={retryWarehouses}
+              />
+            ) : !stockLines ? (
               <SkeletonRows count={5} />
             ) : stockLines.length === 0 ? (
               <p className="text-sm text-slate-400 text-center py-6">
@@ -706,7 +720,7 @@ export default function Dashboard() {
               </tr>
             </thead>
             <tbody>
-              {!activities ? (
+              {activitiesLoading ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <tr key={i} className="border-b border-slate-50">
                     <td colSpan={4} className="px-5 py-3">
@@ -716,14 +730,14 @@ export default function Dashboard() {
                 ))
               ) : activitiesError ? (
                 <tr>
-                  <td
-                    colSpan={4}
-                    className="px-5 py-6 text-center text-red-400"
-                  >
-                    Impossible de charger les activités récentes.
+                  <td colSpan={4} className="px-5 py-2">
+                    <ErrorState
+                      message={activitiesError}
+                      onRetry={retryActivities}
+                    />
                   </td>
                 </tr>
-              ) : activities.length === 0 ? (
+              ) : !activities || activities.length === 0 ? (
                 <tr>
                   <td
                     colSpan={4}
@@ -763,16 +777,22 @@ export default function Dashboard() {
               )}
             </tbody>
           </table>
-          <div className="px-5 py-3 border-t border-slate-100 bg-slate-50/50 text-right">
-            <a
-              href="/history"
-              className="text-xs font-semibold text-[#124191] hover:underline"
-            >
+          <div className="px-5 py-3 border-t border-slate-100 bg-slate-50/50 text-right ">
+            <a href="/history" className="text-xs font-semibold text-[#124191] hover:underline">
               Voir tout l'historique →
             </a>
           </div>
         </div>
       </div>
+      {selectedProjectId != null && (
+  <>
+    <StockSufficiencyPanel projectId={selectedProjectId} />
+    <DeploymentMatrixPanel projectId={selectedProjectId} />
+    <SubcontractorDeploymentPanel projectId={selectedProjectId} />
+  </>
+)}
+
+      
 
       {showCreateModal && (
         <CreateProjectModal

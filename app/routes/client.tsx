@@ -1,7 +1,9 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import { apiFetch } from '../apiFetch';
 import { API_BASE } from '../config';
 import { useAuth } from './authContext';
+import { useFetchState } from '../useFetchState';
+import ErrorState from '../Component/ErrorState';
 
 interface Client {
   id: number;
@@ -12,15 +14,18 @@ interface Client {
 
 export default function ClientsPage() {
   const { isElevated } = useAuth();
-  const [clients, setClients] = useState<Client[] | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [search, setSearch] = useState('');
 
-  const load = useCallback(() => {
-    apiFetch(`${API_BASE}/Clients`).then((r) => r.json()).then(setClients).catch(() => setClients([]));
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
+  const {
+    data: clients,
+    loading: clientsLoading,
+    error: clientsError,
+    retry: reloadClients,
+  } = useFetchState<Client[]>(
+    (signal) => apiFetch(`${API_BASE}/Clients`, { signal }).then((r) => r.json()),
+    [],
+  );
 
   const filtered = (clients ?? []).filter(
     (c) => search.trim() === '' ||
@@ -52,7 +57,9 @@ export default function ClientsPage() {
         className="w-full max-w-md border border-slate-200 rounded-lg px-3 py-2 text-black mb-5"
       />
 
-      {!clients ? (
+      {clientsError ? (
+        <ErrorState message={clientsError} onRetry={reloadClients} />
+      ) : clientsLoading || !clients ? (
         <div className="space-y-2">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-14 bg-white border border-slate-200 rounded-xl animate-pulse" />)}</div>
       ) : filtered.length === 0 ? (
         <p className="text-sm text-slate-400 text-center py-10">Aucun client trouvé.</p>
@@ -82,7 +89,7 @@ export default function ClientsPage() {
       {showForm && (
         <ClientCreateForm
           onClose={() => setShowForm(false)}
-          onCreated={() => { setShowForm(false); load(); }}
+          onCreated={() => { setShowForm(false); reloadClients(); }}
         />
       )}
     </div>

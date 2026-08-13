@@ -20,7 +20,7 @@ export default function SmrPage() {
       </p>
 
       {selectedProjectId == null ? (
-        <p className="text-sm text-slate-400">Chargement du projet…</p>
+        <p className="text-sm text-black">Chargement du projet…</p>
       ) : (
         <div className="bg-white rounded-xl border border-slate-200 p-4">
           <SmrDetailPanel projectId={selectedProjectId} />
