@@ -122,22 +122,27 @@ namespace Backend.Controllers
 
         // PATCH: api/PhysicalAssets/5/defect
         // Marque un asset (unité ou lot) comme défectueux, avec quantité
-        [HttpPatch("{id}/defect")]
-        [Authorize(Roles = "Admin, Supervisor")]
-        public async Task<IActionResult> UpdateDefect(int id, [FromBody] UpdateDefectDto dto)
-        {
-            var asset = await _context.PhysicalAssets.FindAsync(id);
-            if (asset == null) return NotFound();
+       [HttpPatch("{id}/defect")]
+[Authorize(Roles = "Admin,Supervisor")]
+public async Task<IActionResult> UpdateDefect(int id, [FromBody] UpdateDefectDto dto)
+{
+    var asset = await _context.PhysicalAssets
+        .Include(a => a.HardwareProduct)
+        .FirstOrDefaultAsync(a => a.Id == id);
+    if (asset == null) return NotFound();
 
-            if (dto.DefectiveQuantity < 0 || dto.DefectiveQuantity > asset.Quantity)
-                return BadRequest("La quantité défectueuse doit être comprise entre 0 et la quantité totale.");
+    var allowedDomains = new[] { MaterialDomain.RAN, MaterialDomain.Microwave, MaterialDomain.Energy };
+    if (!allowedDomains.Contains(asset.HardwareProduct!.Domain))
+        return BadRequest($"Le matériel de catégorie '{asset.HardwareProduct.Domain}' ne peut pas être marqué défectueux.");
 
-            asset.DefectiveQuantity = dto.DefectiveQuantity;
-            await _context.SaveChangesAsync();
+    if (dto.DefectiveQuantity < 0 || dto.DefectiveQuantity > asset.Quantity)
+        return BadRequest("La quantité défectueuse doit être comprise entre 0 et la quantité totale.");
 
-            return Ok(new { asset.Id, asset.DefectiveQuantity });
-        }
+    asset.DefectiveQuantity = dto.DefectiveQuantity;
+    await _context.SaveChangesAsync();
 
+    return Ok(new { asset.Id, asset.DefectiveQuantity });
+}
         // POST: api/PhysicalAssets/import
         // Réception des lignes lues côté front (SheetJS) depuis le bouton "Importer Excel"
         [HttpPost("import")]

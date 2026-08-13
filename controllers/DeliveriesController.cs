@@ -138,31 +138,28 @@ if (delivery.IsApproved)
             return Ok(new { message = $"Shipment {dto.DeliveryNumber} validé et injecté en stock par {dto.SupervisorName}." });
         }
 
-        private static (MaterialDomain domain, bool isSerialized) GuessClassification(string partNumber, string description)
-        {
-            var desc = (description ?? "").ToLowerInvariant();
+     private static (MaterialDomain domain, bool isSerialized) GuessClassification(string partNumber, string description)
+{
+    var desc = (description ?? "").ToLowerInvariant();
 
-            bool isSerialized = !(desc.Contains("pcs") || desc.Contains(" m.") || desc.Contains("per m")
-                || desc.Contains("cable tie") || desc.Contains(" lk") || desc.Contains(" ltu")
-                || desc.Contains("license") || desc.Contains(" lic") || desc.Contains(" sw ")
-                || desc.Contains("bolt") || desc.Contains("screw") || desc.Contains("washer")
-                || desc.Contains("tape") || desc.Contains("sleeve") || desc.Contains("label"));
+    // Tout en lot par défaut — la sérialisation individuelle n'apporte pas de valeur
+    // fonctionnelle réelle aujourd'hui, on la garde disponible mais désactivée par défaut.
+    bool isSerialized = false;
 
-            MaterialDomain domain;
-            if (desc.Contains("wavence") || desc.Contains("mpr") || desc.Contains("mss-e") || desc.Contains("ubt-t") || desc.Contains("aim-t-o"))
-                domain = MaterialDomain.Microwave;
-            else if (desc.Contains("rectifier") || desc.Contains("battery") || desc.Contains("aaob") || desc.Contains("cabinet") || desc.Contains("power"))
-                domain = MaterialDomain.Energy;
-            else if (desc.Contains("hpe") || desc.Contains("dell") || desc.Contains("server") || desc.Contains("netact") || desc.Contains("bsc"))
-                domain = MaterialDomain.Core;
-            else if (desc.Contains("cable") || desc.Contains("connector") || desc.Contains("tie") || desc.Contains("bolt")
-                || desc.Contains("screw") || desc.Contains("tape") || desc.Contains("sleeve") || desc.Contains("kit"))
-                domain = MaterialDomain.Consumables;
-            else
-                domain = MaterialDomain.RAN;
+    MaterialDomain domain;
+    if (desc.Contains("wavence") || desc.Contains("mpr") || desc.Contains("mss-e") || desc.Contains("ubt-t") || desc.Contains("aim-t-o"))
+        domain = MaterialDomain.Microwave;
+    else if (desc.Contains("rectifier") || desc.Contains("battery") || desc.Contains("aaob") || desc.Contains("cabinet") || desc.Contains("power"))
+        domain = MaterialDomain.Energy;
+    else if (desc.Contains("hpe") || desc.Contains("dell") || desc.Contains("server") || desc.Contains("netact") || desc.Contains("bsc"))
+        domain = MaterialDomain.Core;
+    else if (desc.Contains("cable") || desc.Contains("connector") || desc.Contains("tie") || desc.Contains("bolt")
+        || desc.Contains("screw") || desc.Contains("tape") || desc.Contains("sleeve") || desc.Contains("kit"))
+        domain = MaterialDomain.Consumables;
+    else
+        domain = MaterialDomain.RAN;
 
-            return (domain, isSerialized);
-        }
-    }
-
+    return (domain, isSerialized);
+}
+}
 }

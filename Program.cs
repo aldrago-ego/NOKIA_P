@@ -108,7 +108,11 @@ using (var scope = app.Services.CreateScope())
             supervisor.PasswordHash = hasher.HashPassword(supervisor, "Supervisor123!");
             context.Users.Add(supervisor);
         }
-
+        foreach (var name in new[] { "Zemtic", "CTL", "Hammer", "Wilsem" })
+        {
+            if (!context.Set<Subcontractor>().Any(s => s.Name == name))
+                context.Set<Subcontractor>().Add(new Subcontractor { Name = name });
+        }
         context.SaveChanges();
     }
     catch (Exception ex)

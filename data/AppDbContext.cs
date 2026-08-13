@@ -30,6 +30,8 @@ namespace Backend.Data
         public DbSet<StockLoanItem> StockLoanItems { get; set; }
         public DbSet<DeploymentRecord> DeploymentRecords { get; set; }
         public DbSet<RefreshToken> RefreshTokens { get; set; } // Ajout de la table RefreshTokens   
+        public DbSet<Subcontractor> Subcontractors { get; set; }
+        public DbSet<SmrRequestSiteItem> SmrRequestSiteItems { get; set; }
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);

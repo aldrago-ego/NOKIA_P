@@ -62,37 +62,39 @@ namespace Backend.Controllers
                 .Where(e => e.DeliveryNoteId == id)
                 .ToListAsync();
 
-            return Ok(new
-            {
-                shipment.Id,
-                shipment.DeliveryNumber,
-                shipment.Scope,
-                shipment.Location,
-                shipment.Mot,
-                shipment.VesselDepartureDate,
-                shipment.VesselArrivalDate,
-                shipment.InvoiceNumber,
-                shipment.ContainersCount,
-                shipment.Waybill,
-                Status = shipment.IsApproved ? "Delivered" : "Pending",
-                shipment.ApprovedBy,
-                shipment.ApprovalDate,
-                Materials = shipment.Assets.Select(a => new
-                {
-                    a.Id,
-                    a.HardwareProduct.PartNumber,
-                    a.HardwareProduct.Name,
-                    a.Quantity,
-                    a.DefectiveQuantity,
-                    a.SerialNumber
-                }),
-                ExpectedMaterials = expectedLines.Select(e => new
-                {
-                    e.PartNumber,
-                    e.Description,
-                    e.ExpectedQuantity
-                })
-            });
+            var expectedByPartNumber = expectedLines.ToDictionary(e => e.PartNumber, e => e.ExpectedQuantity);
+
+return Ok(new
+{
+    shipment.Id,
+    shipment.DeliveryNumber,
+    shipment.Scope,
+    shipment.Location,
+    shipment.Mot,
+    shipment.VesselDepartureDate,
+    shipment.VesselArrivalDate,
+    shipment.InvoiceNumber,
+    shipment.ContainersCount,
+    shipment.Waybill,
+    Status = shipment.IsApproved ? "Delivered" : "Pending",
+    shipment.ApprovedBy,
+    shipment.ApprovalDate,
+    Materials = shipment.Assets
+        .GroupBy(a => a.HardwareProduct.PartNumber)
+        .Select(g => new
+        {
+            PartNumber = g.Key,
+            Name = g.First().HardwareProduct.Name,
+            Quantity = g.Sum(a => a.Quantity),
+            DefectiveQuantity = g.Sum(a => a.DefectiveQuantity),
+            SerialNumber = g.Count() > 1 ? $"{g.Count()} unités" : g.First().SerialNumber,
+            ExpectedQuantity = expectedByPartNumber.TryGetValue(g.Key, out var exp) ? exp : (int?)null
+        }),
+    ExpectedMaterials = expectedLines.Select(e => new
+    {
+        e.PartNumber, e.Description, e.ExpectedQuantity, e.Category
+    })
+});
         }
         [HttpDelete("{id}")]
         [Authorize(Roles = "Admin, Supervisor")]
@@ -176,7 +178,8 @@ namespace Backend.Controllers
                         DeliveryNoteId = note.Id,
                         PartNumber = mat.PartNumber,
                         Description = mat.Description,
-                        ExpectedQuantity = mat.ExpectedQuantity
+                        ExpectedQuantity = mat.ExpectedQuantity,
+                        Category = mat.Category
                     });
                 }
 

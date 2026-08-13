@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using backend.Models;
 
 namespace Backend.Models
 {
@@ -22,8 +23,13 @@ namespace Backend.Models
         // Liaison avec le Client
         [Required]
         public int ClientId { get; set; }
-        
+
         [ForeignKey("ClientId")]
         public Client? Client { get; set; }
+        // Ajouts sur Site.cs
+        public int? SubcontractorId { get; set; }
+        public Subcontractor? Subcontractor { get; set; }
+        public string? SiteType { get; set; }
+       
     }
 }

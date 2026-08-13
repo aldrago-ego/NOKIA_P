@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using Backend.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace backend.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260803215142_AddSubcontractorAndSiteItems")]
+    partial class AddSubcontractorAndSiteItems
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -253,9 +256,6 @@ namespace backend.Migrations
                     b.Property<int>("Domain")
                         .HasColumnType("integer");
 
-                    b.Property<int?>("MinimumStockThreshold")
-                        .HasColumnType("integer");
-
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("text");
@@ -370,9 +370,6 @@ namespace backend.Migrations
                         .HasColumnType("integer");
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Category")
-                        .HasColumnType("text");
 
                     b.Property<int>("DeliveryNoteId")
                         .HasColumnType("integer");
@@ -1032,7 +1029,7 @@ namespace backend.Migrations
                         .IsRequired();
 
                     b.HasOne("backend.Models.SMRRequest", "SmrRequest")
-                        .WithMany("SmrRequestSiteItems")
+                        .WithMany()
                         .HasForeignKey("SmrRequestId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -1093,8 +1090,6 @@ namespace backend.Migrations
             modelBuilder.Entity("backend.Models.SMRRequest", b =>
                 {
                     b.Navigation("Items");
-
-                    b.Navigation("SmrRequestSiteItems");
                 });
 
             modelBuilder.Entity("backend.Models.StockLoan", b =>
