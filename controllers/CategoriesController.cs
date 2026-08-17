@@ -76,6 +76,9 @@ namespace Backend.Controllers
         }
 
         // GET: api/Categories/stock-status — alerte seuil bas, global (indépendant du projet)
+        // Une seule requête groupée pour toutes les catégories, au lieu d'une requête par
+        // catégorie — sur une base distante, N allers-retours séquentiels dépassent vite le
+        // timeout du front (15s) dès qu'il y a plus qu'une poignée de catégories.
         [HttpGet("stock-status")]
         public async Task<IActionResult> GetStockStatus()
         {
@@ -83,62 +86,72 @@ namespace Backend.Controllers
                 .Where(c => c.MinimumStockThreshold != null)
                 .ToListAsync();
 
-            var result = new List<object>();
-            foreach (var cat in categories)
-            {
-                var currentQty = await _context.PhysicalAssets
-                    .Include(a => a.HardwareProduct)
-                    .Where(a => a.HardwareProduct.MaterialGroup == cat.Name && a.Status == "STOCK")
-                    .SumAsync(a => a.Quantity);
+            var quantitiesByGroup = await _context.PhysicalAssets
+                .Include(a => a.HardwareProduct)
+                .Where(a => a.Status == "STOCK")
+                .GroupBy(a => a.HardwareProduct.MaterialGroup)
+                .Select(g => new { MaterialGroup = g.Key, Total = g.Sum(a => a.Quantity) })
+                .ToDictionaryAsync(x => x.MaterialGroup, x => x.Total);
 
-                result.Add(new
+            var result = categories
+                .Select(cat =>
                 {
-                    cat.Id,
-                    cat.Name,
-                    Threshold = cat.MinimumStockThreshold,
-                    CurrentQuantity = currentQty,
-                    IsLow = currentQty < cat.MinimumStockThreshold
-                });
-            }
+                    var currentQty = quantitiesByGroup.TryGetValue(cat.Name, out var q) ? q : 0;
+                    return new
+                    {
+                        cat.Id,
+                        cat.Name,
+                        Threshold = cat.MinimumStockThreshold,
+                        CurrentQuantity = currentQty,
+                        IsLow = currentQty < cat.MinimumStockThreshold
+                    };
+                })
+                .OrderByDescending(r => r.IsLow)
+                .ToList();
 
-            return Ok(result.OrderByDescending(r => ((dynamic)r).IsLow));
+            return Ok(result);
         }
+
+        // GET: api/Categories/low-stock-items — mêmes principes : produits + quantités en
+        // stock récupérés chacun en une seule requête groupée, jointure faite en mémoire.
         [HttpGet("low-stock-items")]
         public async Task<IActionResult> GetLowStockItems()
         {
             var categories = await _context.Categories
                 .Where(c => c.MinimumStockThreshold != null)
                 .ToListAsync();
+            var thresholdByCategory = categories.ToDictionary(c => c.Name, c => c.MinimumStockThreshold!.Value);
+            var categoryNames = categories.Select(c => c.Name).ToList();
 
-            var result = new List<object>();
+            var products = await _context.HardwareProducts
+                .Where(p => categoryNames.Contains(p.MaterialGroup))
+                .Select(p => new { p.Id, p.PartNumber, p.Name, p.MaterialGroup })
+                .ToListAsync();
 
-            foreach (var cat in categories)
-            {
-                var products = await _context.HardwareProducts
-                    .Where(p => p.MaterialGroup == cat.Name)
-                    .ToListAsync();
+            var quantitiesByProduct = await _context.PhysicalAssets
+                .Where(a => a.Status == "STOCK")
+                .GroupBy(a => a.HardwareProductId)
+                .Select(g => new { ProductId = g.Key, Total = g.Sum(a => a.Quantity) })
+                .ToDictionaryAsync(x => x.ProductId, x => x.Total);
 
-                foreach (var product in products)
+            var result = products
+                .Select(p =>
                 {
-                    var qty = await _context.PhysicalAssets
-                        .Where(a => a.HardwareProductId == product.Id && a.Status == "STOCK")
-                        .SumAsync(a => a.Quantity);
-
-                    if (qty < cat.MinimumStockThreshold)
+                    var qty = quantitiesByProduct.TryGetValue(p.Id, out var q) ? q : 0;
+                    return new
                     {
-                        result.Add(new
-                        {
-                            product.PartNumber,
-                            product.Name,
-                            Category = cat.Name,
-                            Quantity = qty,
-                            Threshold = cat.MinimumStockThreshold
-                        });
-                    }
-                }
-            }
+                        p.PartNumber,
+                        p.Name,
+                        Category = p.MaterialGroup,
+                        Quantity = qty,
+                        Threshold = thresholdByCategory[p.MaterialGroup]
+                    };
+                })
+                .Where(r => r.Quantity < r.Threshold)
+                .OrderBy(r => r.Quantity)
+                .ToList();
 
-            return Ok(result.OrderBy(r => ((dynamic)r).Quantity));
+            return Ok(result);
         }
     }
 }

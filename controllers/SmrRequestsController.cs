@@ -39,7 +39,12 @@ public async Task<IActionResult> GetSMRRequests([FromQuery] int? projectId)
         Client = r.Client != null ? new { r.Client.Id, r.Client.Name } : null,
         Subcontractor = r.Subcontractor != null ? new { r.Subcontractor.Id, r.Subcontractor.Name } : null,
         ItemsCount = r.Items.Count,
-        SiteItemsCount = r.SmrRequestSiteItems.Count
+        SiteItemsCount = r.SmrRequestSiteItems.Count,
+        // NOUVEAU — signale une SMR approuvée avec allocation partielle (matériel manquant)
+        HasShortfall = r.Status == "Approved" && (
+            r.Items.Any(i => i.AllocatedQuantity < i.RequestedQuantity) ||
+            r.SmrRequestSiteItems.Any(i => i.AllocatedQuantity < i.RequestedQuantity)
+        )
     }));
 }
 
@@ -82,7 +87,12 @@ public async Task<IActionResult> GetSMRRequests([FromQuery] int? projectId)
                     HardwareProduct = new { i.HardwareProduct!.PartNumber, i.HardwareProduct.Name },
                     i.RequestedQuantity,
                     i.AllocatedQuantity
-                })
+                }),
+                // NOUVEAU — signale une SMR approuvée avec allocation partielle (matériel manquant)
+                HasShortfall = request.Status == "Approved" && (
+                    request.Items.Any(i => i.AllocatedQuantity < i.RequestedQuantity) ||
+                    request.SmrRequestSiteItems.Any(i => i.AllocatedQuantity < i.RequestedQuantity)
+                )
             });
         }
         
@@ -152,15 +162,24 @@ public async Task<IActionResult> GetSMRRequests([FromQuery] int? projectId)
         {
             public int HardwareProductId { get; set; }
             public string PartNumber { get; set; } = string.Empty;
+            public string Name { get; set; } = string.Empty;
             public int Requested { get; set; }
             public int Available { get; set; }
+            public int Missing => Requested - Available; // NOUVEAU — quantité manquante, pour affichage direct
         }
 
+        // Compare le stock dispo au reliquat encore nécessaire (RequestedQuantity - AllocatedQuantity),
+        // pas à la quantité totale demandée — sur une première approbation AllocatedQuantity vaut 0,
+        // donc le reliquat = la quantité demandée ; sur une complétion (SMR déjà partiellement
+        // approuvée), seul ce qui manque encore compte.
         private async Task<List<ShortageInfo>> CheckAvailability(SMRRequest request)
         {
             var shortages = new List<ShortageInfo>();
             foreach (var item in request.Items)
             {
+                var remaining = item.RequestedQuantity - item.AllocatedQuantity;
+                if (remaining <= 0) continue; // déjà entièrement alloué
+
                 var assets = await _context.PhysicalAssets
                     .Include(a => a.HardwareProduct)
                     .Where(a => a.HardwareProductId == item.HardwareProductId
@@ -169,13 +188,14 @@ public async Task<IActionResult> GetSMRRequests([FromQuery] int? projectId)
                     .ToListAsync();
 
                 var available = assets.Sum(a => a.Quantity - a.DefectiveQuantity);
-                if (available < item.RequestedQuantity)
+                if (available < remaining)
                 {
                     shortages.Add(new ShortageInfo
                     {
                         HardwareProductId = item.HardwareProductId,
-                        PartNumber = assets.FirstOrDefault()?.HardwareProduct.PartNumber ?? $"#{item.HardwareProductId}",
-                        Requested = item.RequestedQuantity,
+                        PartNumber = assets.FirstOrDefault()?.HardwareProduct.PartNumber ?? item.HardwareProduct?.PartNumber ?? $"#{item.HardwareProductId}",
+                        Name = assets.FirstOrDefault()?.HardwareProduct.Name ?? item.HardwareProduct?.Name ?? "",
+                        Requested = remaining,
                         Available = available
                     });
                 }
@@ -238,7 +258,15 @@ public async Task<IActionResult> GetSMRRequests([FromQuery] int? projectId)
                 .FirstOrDefaultAsync(r => r.Id == id);
 
             if (request == null) return NotFound();
-            if (request.Status != "Pending") return BadRequest("Cette demande n'est plus en attente.");
+
+            // Une SMR "Approved" avec allocation partielle peut être réapprouvée pour compléter
+            // ce qui manque (ex : un réapprovisionnement est arrivé depuis) — mais seulement s'il
+            // reste effectivement un reliquat non alloué. Une SMR déjà pleinement allouée, ou
+            // rejetée, ne peut pas être retouchée ici.
+            bool isCompletion = request.Status == "Approved";
+            if (!isCompletion && request.Status != "Pending")
+                return BadRequest("Cette demande n'est plus en attente.");
+
             if (request.SubcontractorId.HasValue)
             {
                 // Mode "par sous-traitant" — plusieurs sites via SmrRequestSiteItem
@@ -249,7 +277,8 @@ public async Task<IActionResult> GetSMRRequests([FromQuery] int? projectId)
     .ToListAsync();
 
                 // Applique les corrections du superviseur (papier vs constat terrain) avant déduction
-                if (dto.SiteItemOverrides != null)
+                // — seulement à la première approbation, pas lors d'une complétion (déjà confirmées).
+                if (!isCompletion && dto.SiteItemOverrides != null)
                 {
                     foreach (var ov in dto.SiteItemOverrides)
                     {
@@ -258,24 +287,32 @@ public async Task<IActionResult> GetSMRRequests([FromQuery] int? projectId)
                     }
                 }
 
+                if (isCompletion && !siteItems.Any(i => i.AllocatedQuantity < i.RequestedQuantity))
+                    return BadRequest("Cette SMR est déjà entièrement approuvée.");
+
                 if (!dto.ForcePartialAllocation)
                 {
                     var subShortages = new List<object>();
                     foreach (var item in siteItems)
                     {
+                        var remaining = item.RequestedQuantity - item.AllocatedQuantity;
+                        if (remaining <= 0) continue; // déjà entièrement alloué
+
                         var available = await _context.PhysicalAssets
                             .Where(a => a.HardwareProductId == item.HardwareProductId
                                      && a.WarehouseId == request.WarehouseId && a.Status == "STOCK")
                             .SumAsync(a => a.Quantity - a.DefectiveQuantity);
 
-                        if (available < item.RequestedQuantity)
+                        if (available < remaining)
                         {
                             subShortages.Add(new
                             {
                                 hardwareProductId = item.HardwareProductId,
                                 partNumber = item.HardwareProduct!.PartNumber,
+                                name = item.HardwareProduct.Name,
                                 available,
-                                requested = item.RequestedQuantity
+                                requested = remaining,
+                                missing = remaining - available
                             });
                         }
                     }
@@ -284,27 +321,30 @@ public async Task<IActionResult> GetSMRRequests([FromQuery] int? projectId)
                         return Conflict(new { message = "Stock insuffisant pour certaines références.", shortages = subShortages });
                 }
 
+                int deductedCount = 0;
                 foreach (var item in siteItems)
                 {
+                    var remaining = item.RequestedQuantity - item.AllocatedQuantity;
+                    if (remaining <= 0) continue; // déjà entièrement alloué — rien à faire
+
                     var available = await _context.PhysicalAssets
                         .Where(a => a.HardwareProductId == item.HardwareProductId
                                  && a.WarehouseId == request.WarehouseId && a.Status == "STOCK")
                         .SumAsync(a => a.Quantity - a.DefectiveQuantity);
-                    int toDeduct = Math.Min(item.RequestedQuantity, available);
+                    int toDeduct = Math.Min(remaining, available);
+                    if (toDeduct <= 0) continue;
 
                     await DeductStockForSiteItem(item.HardwareProductId, request.WarehouseId, toDeduct);
-                    item.AllocatedQuantity = toDeduct;
+                    item.AllocatedQuantity += toDeduct;
+                    deductedCount++;
 
-                    if (toDeduct > 0)
+                    _context.Set<DeploymentRecord>().Add(new DeploymentRecord
                     {
-                        _context.Set<DeploymentRecord>().Add(new DeploymentRecord
-                        {
-                            SmrRequestId = request.Id,
-                            SiteId = item.SiteId,
-                            HardwareProductId = item.HardwareProductId,
-                            Quantity = toDeduct
-                        });
-                    }
+                        SmrRequestId = request.Id,
+                        SiteId = item.SiteId,
+                        HardwareProductId = item.HardwareProductId,
+                        Quantity = toDeduct
+                    });
                 }
 
                 request.Status = "Approved";
@@ -314,7 +354,9 @@ public async Task<IActionResult> GetSMRRequests([FromQuery] int? projectId)
                 {
                     ProjectId = request.ProjectId,
                     Type = "SMR_APPROVED",
-                    Description = $"SMR {request.SMRNumber} approuvée (sous-traitant) — matériel déduit sur {siteItems.Select(i => i.SiteId).Distinct().Count()} site(s)",
+                    Description = isCompletion
+                        ? $"SMR {request.SMRNumber} complétée (sous-traitant) — {deductedCount} référence(s) additionnelle(s) allouée(s)"
+                        : $"SMR {request.SMRNumber} approuvée (sous-traitant) — matériel déduit sur {siteItems.Select(i => i.SiteId).Distinct().Count()} site(s)",
                     PerformedBy = dto.ApprovedBy ?? "Admin"
                 });
                 await _context.SaveChangesAsync();
@@ -323,6 +365,9 @@ public async Task<IActionResult> GetSMRRequests([FromQuery] int? projectId)
             }
 
             // Sinon, comportement existant inchangé (mode par site, ne pas toucher)
+
+            if (isCompletion && !request.Items.Any(i => i.AllocatedQuantity < i.RequestedQuantity))
+                return BadRequest("Cette SMR est déjà entièrement approuvée.");
 
             if (!dto.ForcePartialAllocation)
             {
@@ -333,18 +378,22 @@ public async Task<IActionResult> GetSMRRequests([FromQuery] int? projectId)
 
             foreach (var item in request.Items)
             {
+                var remaining = item.RequestedQuantity - item.AllocatedQuantity;
+                if (remaining <= 0) continue; // déjà entièrement alloué — rien à faire
+
                 var assets = await _context.PhysicalAssets
                     .Where(a => a.HardwareProductId == item.HardwareProductId
                              && a.WarehouseId == request.WarehouseId
                              && a.Status == "STOCK")
                     .ToListAsync();
                 var available = assets.Sum(a => a.Quantity - a.DefectiveQuantity);
-                int toDeduct = Math.Min(item.RequestedQuantity, available);
+                int toDeduct = Math.Min(remaining, available);
+                if (toDeduct <= 0) continue;
 
                 await DeductStockForItem(item, request.WarehouseId, toDeduct);
-                item.AllocatedQuantity = toDeduct;
+                item.AllocatedQuantity += toDeduct;
 
-                if (toDeduct > 0 && request.SiteIds.Count > 0)
+                if (request.SiteIds.Count > 0)
                 {
                     _context.Set<DeploymentRecord>().Add(new DeploymentRecord
                     {
@@ -363,7 +412,9 @@ public async Task<IActionResult> GetSMRRequests([FromQuery] int? projectId)
             {
                 ProjectId = request.ProjectId,
                 Type = "SMR_APPROVED",
-                Description = $"SMR {request.SMRNumber} approuvée — matériel déduit du stock",
+                Description = isCompletion
+                    ? $"SMR {request.SMRNumber} complétée — reliquat alloué depuis le stock"
+                    : $"SMR {request.SMRNumber} approuvée — matériel déduit du stock",
                 PerformedBy = dto.ApprovedBy ?? "Admin"
             });
             await _context.SaveChangesAsync();
@@ -526,7 +577,18 @@ public async Task<IActionResult> GetUsageRanking([FromQuery] int projectId, [Fro
             {
                 if (line.Quantity <= 0 || string.IsNullOrWhiteSpace(line.PartNumber)) continue;
 
-                var site = await _context.Sites.FirstOrDefaultAsync(s => s.SiteName == line.SiteName);
+                // Le nom de site dans les fichiers Excel des sous-traitants est souvent générique
+                // (ex : "urban", "suburb" — le TYPE de site plutôt qu'un code unique). Chercher par
+                // SiteName seul, sans scoper par sous-traitant, faisait fusionner par erreur le site
+                // "urban" du sous-traitant A avec le site "urban" du sous-traitant B : le second
+                // s'attachait au même Site déjà possédé par le premier (SubcontractorId non modifiable
+                // une fois posé), et ses déploiements disparaissaient silencieusement du tableau de
+                // répartition par sous-traitant (filtré par Site.SubcontractorId). On ne réutilise donc
+                // qu'un site déjà à CE sous-traitant, ou encore libre (jamais rattaché) — jamais un site
+                // déjà possédé par un autre sous-traitant.
+                var site = await _context.Sites.FirstOrDefaultAsync(s =>
+                    s.SiteName == line.SiteName &&
+                    (s.SubcontractorId == dto.SubcontractorId || s.SubcontractorId == null));
                 if (site == null)
                 {
                     site = new Site
