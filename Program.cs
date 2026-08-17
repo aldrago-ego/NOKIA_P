@@ -88,6 +88,13 @@ using (var scope = app.Services.CreateScope())
 
         var hasher = new PasswordHasher<User>();
 
+        if (!context.Users.Any(u => u.Username == "superadmin"))
+        {
+            var superAdmin = new User { Username = "superadmin", Role = "SuperAdmin", DisplayName = "SUPERADMIN" };
+            superAdmin.PasswordHash = hasher.HashPassword(superAdmin, "SuperAdmin123!");
+            context.Users.Add(superAdmin);
+        }
+
         if (!context.Users.Any(u => u.Username == "admin"))
         {
             var admin = new User { Username = "admin", Role = "Admin", DisplayName = "ADMIN" };

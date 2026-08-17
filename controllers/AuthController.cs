@@ -115,12 +115,18 @@ namespace Backend.Controllers
 
         private string GenerateAccessToken(User user)
         {
-            var claims = new[]
+            var claims = new List<Claim>
             {
                 new Claim(ClaimTypes.Name, user.Username),
                 new Claim(ClaimTypes.Role, user.Role),
                 new Claim("displayName", user.DisplayName),
             };
+
+            // Le SuperAdmin hérite de tous les droits Admin : on ajoute la claim "Admin" en plus
+            // de "SuperAdmin", pour que les endpoints [Authorize(Roles = "Admin")] existants
+            // restent valables sans devoir être modifiés un par un.
+            if (user.Role == "SuperAdmin")
+                claims.Add(new Claim(ClaimTypes.Role, "Admin"));
 
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]!));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
