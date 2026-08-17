@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 
 // État d'erreur réutilisable pour les fetch automatiques au montage (dashboards,
 // listes, dropdowns...). À utiliser avec useFetchState : { error, retry }.
@@ -9,6 +10,7 @@ export default function ErrorState({
   message?: string | null;
   onRetry: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="flex flex-col items-center justify-center text-center py-8 px-4">
       <svg
@@ -32,7 +34,7 @@ export default function ErrorState({
         />
       </svg>
       <p className="text-sm text-red-600 mb-3">
-        {message || "Impossible de charger les données."}
+        {message || t("common.errorStateDefault")}
       </p>
       <button
         onClick={onRetry}
@@ -47,7 +49,7 @@ export default function ErrorState({
             strokeLinejoin="round"
           />
         </svg>
-        Réessayer
+        {t("common.retry")}
       </button>
     </div>
   );

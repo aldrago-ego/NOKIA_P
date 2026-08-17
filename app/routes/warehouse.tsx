@@ -14,6 +14,7 @@ import SubcontractorUsagePanel from "./SubcontractorUsagePanel";
 import LowStockPanel from "./lowstockpanel";
 import { useFetchState } from "../useFetchState";
 import ErrorState from "../Component/ErrorState";
+import { useTranslation } from "react-i18next";
 
 const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:5000/api";
 
@@ -142,6 +143,7 @@ function timeAgo(iso: string) {
 const DEFECT_ALLOWED_DOMAINS = ["RAN", "Microwave", "Energy"];
 
 export default function WarehousePage() {
+  const { t } = useTranslation();
   const { selectedProjectId, selectedProject } = useProject();
   const { isAdmin, isElevated } = useAuth();
 
@@ -240,7 +242,7 @@ export default function WarehousePage() {
     retryPendingShipments();
     retryLines();
     retryRecentActivity();
-    showToast("Livraison confirmée — matériel injecté en stock");
+    showToast(t("warehouse.deliveryConfirmedToast"));
   }
 
   async function updateDefect(assetId: number, value: number, maxQty: number) {
@@ -256,9 +258,9 @@ export default function WarehousePage() {
       );
       if (!res.ok) throw new Error();
       retryLines();
-      showToast("Statut mis à jour");
+      showToast(t("warehouse.statusUpdatedToast"));
     } catch {
-      showToast("Échec de la mise à jour");
+      showToast(t("warehouse.updateFailedToast"));
     }
   }
 
@@ -312,7 +314,7 @@ export default function WarehousePage() {
     return map;
   }, [filteredLines]);
 
-  const activeDomainLabel = domainFilter || "Tous les domaines";
+  const activeDomainLabel = domainFilter || t("warehouse.allDomains");
   const activeDomainRefs = filteredLines.length;
   const activeDomainQty = filteredLines.reduce(
     (a, l) => a + l.totalQuantity,
@@ -325,7 +327,7 @@ export default function WarehousePage() {
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <h1 className="text-xl font-bold text-[#0F172A]">Warehouse</h1>
+            <h1 className="text-xl font-bold text-[#0F172A]">{t("warehouse.title")}</h1>
             {selectedProject && (
               <span className="font-mono text-xs bg-[#EAF1FC] text-[#124191] px-2.5 py-1 rounded-full font-semibold">
                 {selectedProject.code} — {selectedProject.name}
@@ -333,7 +335,7 @@ export default function WarehousePage() {
             )}
           </div>
           <p className="text-sm text-slate-500">
-            Détail du matériel présent actuellement en entrepôt
+            {t("warehouse.subtitle")}
           </p>
         </div>
 
@@ -341,7 +343,7 @@ export default function WarehousePage() {
           {isElevated && (
             <button
               onClick={() => setShowImportModal(true)}
-              className="flex items-center gap-1.5 bg-white border border-slate-200 text-sm font-semibold text-[#0F172A] rounded-lg px-4 py-2.5 hover:border-[#124191] hover:shadow-sm transition-all"
+              className="flex items-center gap-1.5 bg-white border border-slate-200 text-sm font-semibold text-[#0F172A] rounded-lg px-4 py-2.5 hover:border-[#124191] hover:shadow-sm transition-all duration-200"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
                 <path
@@ -352,14 +354,14 @@ export default function WarehousePage() {
                   strokeLinejoin="round"
                 />
               </svg>
-              Importer (Excel)
+              {t("warehouse.importExcel")}
             </button>
           )}
           {isElevated && (
             <button
               onClick={() => setShowWithdrawalForm(true)}
               disabled={!lines || lines.length === 0}
-              className="flex items-center gap-1.5 bg-white border border-slate-200 text-sm font-semibold text-[#0F172A] rounded-lg px-4 py-2.5 hover:border-[#124191] hover:shadow-sm transition-all disabled:opacity-50"
+              className="flex items-center gap-1.5 bg-white border border-slate-200 text-sm font-semibold text-[#0F172A] rounded-lg px-4 py-2.5 hover:border-[#124191] hover:shadow-sm transition-all duration-200 disabled:opacity-50"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
                 <path
@@ -370,13 +372,13 @@ export default function WarehousePage() {
                   strokeLinejoin="round"
                 />
               </svg>
-              Donner à un client
+              {t("warehouse.giveToClient")}
             </button>
           )}
           {isAdmin && (
             <button
               onClick={() => setShowCategoryManager(true)}
-              className="flex items-center gap-1.5 bg-white border border-slate-200 text-sm font-semibold text-[#0F172A] rounded-lg px-4 py-2.5 hover:border-[#124191] hover:shadow-sm transition-all"
+              className="flex items-center gap-1.5 bg-white border border-slate-200 text-sm font-semibold text-[#0F172A] rounded-lg px-4 py-2.5 hover:border-[#124191] hover:shadow-sm transition-all duration-200"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
                 <rect
@@ -416,14 +418,14 @@ export default function WarehousePage() {
                   strokeWidth="1.8"
                 />
               </svg>
-              Catégories
+              {t("warehouse.categories")}
             </button>
           )}
 
           {isAdmin && (
             <button
               onClick={() => setShowStockCorrection(true)}
-              className="flex items-center gap-1.5 bg-[#F2790B] text-sm font-semibold text-white rounded-lg px-4 py-2.5 hover:bg-[#d96a06] hover:shadow-md transition-all"
+              className="flex items-center gap-1.5 bg-[#F2790B] text-sm font-semibold text-white rounded-lg px-4 py-2.5 hover:bg-[#d96a06] hover:shadow-md transition-all duration-200"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
                 <path
@@ -434,23 +436,24 @@ export default function WarehousePage() {
                   strokeLinejoin="round"
                 />
               </svg>
-              Mettre à jour le stock
+              {t("warehouse.updateStock")}
             </button>
           )}
         </div>
       </div>
+      <LowStockAlert />
       <LowStockPanel />
 
       {/* ---------- Bandeau shipments en attente ---------- */}
 
       {isElevated && pendingShipmentsError && (
-        <div className="mb-5 flex items-center justify-between gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-600">
+        <div className="mb-5 flex items-center justify-between gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-600 animate-[fadeIn_.3s_ease]">
           <span>
             Impossible de charger les shipments en attente de confirmation.
           </span>
           <button
             onClick={retryPendingShipments}
-            className="flex-shrink-0 flex items-center gap-1.5 bg-white border border-slate-200 text-xs font-semibold text-[#0F172A] rounded-lg px-3 py-1.5 hover:border-[#124191] hover:shadow-sm transition-all"
+            className="flex-shrink-0 flex items-center gap-1.5 bg-white border border-slate-200 text-xs font-semibold text-[#0F172A] rounded-lg px-3 py-1.5 hover:border-[#124191] hover:shadow-sm transition-all duration-200"
           >
             Réessayer
           </button>
@@ -503,32 +506,36 @@ export default function WarehousePage() {
       {/* ---------- KPI : global + par domaine ---------- */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-5">
         <KpiCard
-          label="Références"
+          idx={0}
+          label={t("warehouse.references")}
           value={totalRefs}
           accent="text-[#124191]"
           bg="bg-[#EAF1FC]"
           icon="box"
         />
         <KpiCard
-          label="Qté totale"
+          idx={1}
+          label={t("warehouse.totalQty")}
           value={totalQty}
           accent="text-[#124191]"
           bg="bg-[#EAF1FC]"
           icon="stack"
         />
         <KpiCard
-          label="Défectueux"
+          idx={2}
+          label={t("warehouse.defective")}
           value={totalDefect}
           accent="text-red-600"
           bg="bg-red-50"
           icon="alert"
           danger
         />
-        {domainStats.slice(0, 4).map((d) => {
+        {domainStats.slice(0, 4).map((d, i) => {
           const c = domainColor(d.domain);
           return (
             <KpiCard
               key={d.domain}
+              idx={3 + i}
               label={d.domain}
               value={d.qty}
               sub={`${d.refs} réf.`}
@@ -565,7 +572,7 @@ export default function WarehousePage() {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Rechercher par  description…"
+            placeholder={t("warehouse.searchPlaceholder")}
             className="w-full border border-slate-200 rounded-lg pl-9 pr-3 py-2.5 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#124191]/30 focus:border-[#124191] transition-all"
           />
         </div>
@@ -576,7 +583,7 @@ export default function WarehousePage() {
             onChange={(e) => setDomainFilter(e.target.value)}
             className="flex-1 sm:flex-none border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#124191]/30"
           >
-            <option value="">Toutes les catégories</option>
+            <option value="">{t("warehouse.allCategories")}</option>
             {domainStats.map((d) => (
               <option key={d.domain} value={d.domain}>
                 {d.domain}
@@ -589,9 +596,9 @@ export default function WarehousePage() {
             onChange={(e) => setStatusFilter(e.target.value as any)}
             className="border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#124191]/30"
           >
-            <option value="">Tous statuts</option>
-            <option value="good">Bon état</option>
-            <option value="defective">Défectueux</option>
+            <option value="">{t("warehouse.allStatuses")}</option>
+            <option value="good">{t("warehouse.goodCondition")}</option>
+            <option value="defective">{t("warehouse.defectiveStatus")}</option>
           </select>
         </div>
       </div>
@@ -613,9 +620,9 @@ export default function WarehousePage() {
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-[280px_320px_1fr] gap-4">
           {/* ---------- Colonne 1 : Donut inventaire par catégorie ---------- */}
-          <div className="bg-white rounded-xl border border-slate-200 p-5">
+          <div className="bg-white rounded-xl border border-slate-200 p-5 animate-[slideDown_.3s_ease]">
             <h3 className="text-sm font-bold text-[#0F172A] mb-4">
-              Inventaire par catégorie
+              {t("warehouse.inventoryByCategory")}
             </h3>
             <DomainDonut stats={domainStats} total={totalQty} />
             <div className="mt-4 space-y-2">
@@ -652,9 +659,9 @@ export default function WarehousePage() {
           </div>
 
           {/* ---------- Colonne 2 : Activité récente ---------- */}
-          <div className="bg-white rounded-xl border border-slate-200 p-5">
+          <div className="bg-white rounded-xl border border-slate-200 p-5 animate-[slideDown_.3s_ease]">
             <h3 className="text-sm font-bold text-[#0F172A] mb-4">
-              Activité récente
+              {t("warehouse.recentActivity")}
             </h3>
             {recentActivityError ? (
               <ErrorState
@@ -672,7 +679,7 @@ export default function WarehousePage() {
               </div>
             ) : recentActivity.length === 0 ? (
               <p className="text-xs text-slate-400 text-center py-6">
-                Aucune activité récente.
+                {t("warehouse.noRecentActivity")}
               </p>
             ) : (
               <div className="space-y-1">
@@ -714,7 +721,7 @@ export default function WarehousePage() {
           </div>
 
           {/* ---------- Colonne 3 : tableau détaillé ---------- */}
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden animate-[slideDown_.3s_ease]">
             <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50">
               <span className="font-bold text-sm text-[#0F172A] block truncate">
                 {activeDomainLabel}{" "}
@@ -728,7 +735,7 @@ export default function WarehousePage() {
             <div className="max-h-[560px] overflow-y-auto">
               {filteredLines.length === 0 ? (
                 <p className="text-sm text-slate-400 text-center py-10">
-                  Aucun matériel ne correspond à ce filtre.
+                  {t("warehouse.notMatchingFilter")}
                 </p>
               ) : (
                 Array.from(filteredGrouped.entries()).map(
@@ -821,7 +828,7 @@ export default function WarehousePage() {
           onImported={() => {
             setShowImportModal(false);
             retryPendingShipments();
-            showToast("Import terminé — vérifiez les shipments en attente");
+            showToast(t("warehouse.importFinishedToast"));
           }}
         />
       )}
@@ -846,7 +853,7 @@ export default function WarehousePage() {
               setShowWithdrawalForm(false);
               retryLines();
               retryRecentActivity();
-              showToast("Matériel donné au client — stock mis à jour");
+              showToast(t("warehouse.givenToClientToast"));
             }}
           />
         )}
@@ -863,7 +870,7 @@ export default function WarehousePage() {
               setShowStockCorrection(false);
               retryLines();
               retryRecentActivity();
-              showToast("Stock mis à jour");
+              showToast(t("warehouse.stockUpdatedToast"));
             }}
           />
         )}
@@ -874,7 +881,7 @@ export default function WarehousePage() {
           onSaved={() => {
             setEditingProductId(null);
             retryLines();
-            showToast("Fiche produit mise à jour");
+            showToast(t("warehouse.productUpdatedToast"));
           }}
         />
       )}
@@ -892,6 +899,7 @@ function KpiCard({
   bg,
   icon,
   danger,
+  idx = 0,
 }: {
   label: string;
   value: number;
@@ -900,9 +908,13 @@ function KpiCard({
   bg: string;
   icon: string;
   danger?: boolean;
+  idx?: number;
 }) {
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-4 hover:shadow-sm transition-shadow">
+    <div
+      style={{ animationDelay: `${idx * 60}ms` }}
+      className="bg-white rounded-xl border border-slate-200 p-4 hover:shadow-sm transition-shadow animate-[fadeIn_.4s_ease_backwards]"
+    >
       <div className="flex items-center justify-between mb-2">
         <span
           className={`w-8 h-8 rounded-lg ${bg} ${accent} flex items-center justify-center`}
@@ -1030,13 +1042,14 @@ function StatChip({
 }
 
 function StatusPill({ defective }: { defective: boolean }) {
+  const { t } = useTranslation();
   return defective ? (
     <span className="text-xs font-semibold text-red-700 bg-red-50 px-2 py-0.5 rounded-full">
-      Défectueux
+      {t("warehouse.defectiveStatus")}
     </span>
   ) : (
     <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
-      Bon état
+      {t("warehouse.goodCondition")}
     </span>
   );
 }
@@ -1296,6 +1309,7 @@ function ImportShipmentsModal({
   onClose: () => void;
   onImported: () => void;
 }) {
+  const { t } = useTranslation();
   const { projects, selectedProjectId } = useProject();
   const [targetProjectId, setTargetProjectId] = useState<number | null>(
     selectedProjectId,
@@ -1313,11 +1327,11 @@ function ImportShipmentsModal({
 
   async function handleImport() {
     if (!file) {
-      setError("Sélectionnez un fichier Excel.");
+      setError(t("warehouse.importModal.selectFile"));
       return;
     }
     if (targetProjectId == null) {
-      setError("Sélectionnez le projet auquel rattacher cet import.");
+      setError(t("warehouse.importModal.selectProject"));
       return;
     }
     setBusy(true);
@@ -1350,9 +1364,7 @@ function ImportShipmentsModal({
         }
 
         if (!shipmentSheetRows) {
-          setError(
-            'Aucune feuille avec un tableau "Shipment no." trouvée dans ce fichier.',
-          );
+          setError(t("warehouse.importModal.noShipmentSheet"));
           setBusy(false);
           return;
         }
@@ -1371,9 +1383,7 @@ function ImportShipmentsModal({
         setSkippedMaterialsCount(skippedCount);
 
         if (enrichedRows.length === 0) {
-          setError(
-            "Aucune ligne de shipment exploitable détectée dans ce fichier.",
-          );
+          setError(t("warehouse.importModal.noExploitableRows"));
           setBusy(false);
           return;
         }
@@ -1391,7 +1401,7 @@ function ImportShipmentsModal({
         const data2 = await res.json();
         setResult(data2);
       } catch (err: any) {
-        setError(err.message || "Échec de l'import.");
+        setError(err.message || t("warehouse.importModal.importFailed"));
       } finally {
         setBusy(false);
       }
@@ -1405,10 +1415,10 @@ function ImportShipmentsModal({
       className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4 text-black"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="bg-white rounded-xl w-full max-w-md p-6 shadow-2xl">
+      <div className="bg-white rounded-xl w-full max-w-md p-6 shadow-2xl animate-[slideUp_.3s_ease]">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-base font-bold text-[#0F172A]">
-            Importer des shipments
+            {t("warehouse.importModal.title")}
           </h3>
           <button
             onClick={onClose}
@@ -1434,7 +1444,7 @@ function ImportShipmentsModal({
                   strokeLinejoin="round"
                 />
               </svg>
-              {result.created} shipment(s) importé(s) pour{" "}
+              {t("warehouse.importModal.importedFor", { count: result.created })}{" "}
               <strong>{targetProject?.name}</strong>
               {result.skippedDetails && result.skippedDetails.length > 0 && (
                 <ul className="text-xs text-slate-500 list-disc pl-4 mb-3 max-h-32 overflow-y-auto">
@@ -1459,34 +1469,28 @@ function ImportShipmentsModal({
                 </svg>
                 <span>
                   <strong>
-                    {skippedMaterialsCount} ligne(s) de matériel ignorée(s)
+                    {t("warehouse.importModal.skippedMaterialLines", { count: skippedMaterialsCount })}
                   </strong>{" "}
-                  — colonne "SHP" vide ou invalide dans le fichier. Ces
-                  références n'apparaîtront dans aucun manifeste de shipment
-                  tant qu'elles ne seront pas rattachées à un numéro SHP dans le
-                  fichier source.
+                  {t("warehouse.importModal.skippedMaterialText")}
                 </span>
               </div>
             )}
             <p className="text-xs text-slate-400 mb-4">
-              Ces shipments sont en attente — confirmez leur réception depuis le
-              bandeau "en attente de confirmation" pour les injecter en stock.
+              {t("warehouse.importModal.pendingNote")}
             </p>
             <div className="flex justify-end">
               <button
                 onClick={onImported}
                 className="px-4 py-2 text-sm font-semibold text-white bg-[#124191] rounded-lg hover:bg-[#0d3373] transition-colors"
               >
-                Terminé
+                {t("warehouse.importModal.done")}
               </button>
             </div>
           </div>
         ) : (
           <>
             <div className="flex items-center gap-2 bg-[#EAF1FC] border border-[#c7dbf5] text-[#124191] text-xs rounded-lg px-3 py-2.5 mb-4">
-              Confirmez à quel projet rattacher cet import — les shipments
-              resteront en attente tant qu'ils ne sont pas validés
-              individuellement.
+              {t("warehouse.importModal.confirmProjectText")}
             </div>
 
             {error && (
@@ -1497,7 +1501,7 @@ function ImportShipmentsModal({
 
             <div className="mb-4">
               <label className="block text-xs font-semibold text-slate-500 mb-1.5">
-                Projet cible
+                {t("warehouse.importModal.targetProject")}
               </label>
               <select
                 value={targetProjectId ?? ""}
@@ -1507,21 +1511,20 @@ function ImportShipmentsModal({
                 {projects?.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.code} — {p.name}
-                    {p.isCurrent ? " (actif)" : ""}
+                    {p.isCurrent ? t("warehouse.importModal.active") : ""}
                   </option>
                 ))}
               </select>
               {targetProject && !targetProject.isCurrent && (
                 <p className="text-xs text-amber-600 mt-1.5">
-                  Ce n'est pas le projet actuellement actif — vérifiez que c'est
-                  intentionnel.
+                  {t("warehouse.importModal.notActiveWarning")}
                 </p>
               )}
             </div>
 
             <div className="mb-5">
               <label className="block text-xs font-semibold text-slate-500 mb-1.5">
-                Fichier Excel
+                {t("warehouse.importModal.excelFile")}
               </label>
               <input
                 type="file"
@@ -1536,16 +1539,16 @@ function ImportShipmentsModal({
                 onClick={onClose}
                 className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
               >
-                Annuler
+                {t("common.cancel")}
               </button>
               <LoadingButton
                 onClick={handleImport}
                 disabled={busy}
                 loading={busy}
-                loadingText="Import…"
+                loadingText={t("warehouse.importModal.importing")}
                 className="px-4 py-2 text-sm font-semibold text-white bg-[#124191] rounded-lg hover:bg-[#0d3373] transition-colors disabled:opacity-60"
               >
-                {busy ? "Import…" : "Importer"}
+                {busy ? t("warehouse.importModal.importing") : t("warehouse.importModal.import")}
               </LoadingButton>
             </div>
           </>
@@ -1564,6 +1567,7 @@ function MaterialRows({
   onDefectSave: (assetId: number, value: number, maxQty: number) => void;
   onEdit?: () => void;
 }) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const hasMultipleUnits = line.units.length > 1;
 
@@ -1571,7 +1575,7 @@ function MaterialRows({
     const u = line.units[0];
     if (!u) return null;
     return (
-      <tr className="border-b border-slate-50 hover:bg-[#EAF1FC]">
+      <tr className="border-b border-slate-50 hover:bg-[#EAF1FC] transition-colors duration-150">
         <td className="px-5 py-2 font-mono text-xs text-[#124191]">
           {line.partNumber}
           {line.isSerialized && (
@@ -1594,7 +1598,7 @@ function MaterialRows({
               onClick={onEdit}
               className="ml-2 text-[10px] text-[#124191] hover:underline"
             >
-              Modifier
+              {t("common.edit")}
             </button>
           )}
         </td>
@@ -1605,19 +1609,19 @@ function MaterialRows({
   return (
     <>
       <tr
-        className="border-b border-slate-50 hover:bg-[#EAF1FC] cursor-pointer"
+        className="border-b border-slate-50 hover:bg-[#EAF1FC] cursor-pointer transition-colors duration-150"
         onClick={() => setExpanded((e) => !e)}
       >
         <td className="px-5 py-2 font-mono text-xs text-[#124191]">
           <span
-            className={`inline-block mr-1.5 text-slate-400 transition-transform ${expanded ? "rotate-90" : ""}`}
+            className={`inline-block mr-1.5 text-slate-400 transition-transform duration-200 ${expanded ? "rotate-90" : ""}`}
           >
             ▸
           </span>
           {line.partNumber}
           <span className="text-slate-400 font-sans">
             {" "}
-            · {line.units.length} unités
+            {t("warehouse.unitsCount", { count: line.units.length })}
           </span>
         </td>
         <td className="px-5 py-2">{line.name}</td>
@@ -1642,7 +1646,7 @@ function MaterialRows({
         line.units.map((u) => (
           <tr key={u.id} className="border-b border-slate-50 bg-slate-50/40">
             <td className="px-5 py-2 pl-10 font-mono text-xs text-slate-400">
-              {line.isSerialized ? u.serialNumber : `Lot ${u.serialNumber}`}
+              {line.isSerialized ? u.serialNumber : t("warehouse.lotLabel", { serial: u.serialNumber })}
             </td>
             <td className="px-5 py-2 text-slate-300 text-xs">—</td>
             <td className="px-5 py-2 text-right font-mono text-slate-500">
@@ -1673,6 +1677,7 @@ function MaterialCard({
   onDefectSave: (assetId: number, value: number, maxQty: number) => void;
   onEdit?: () => void;
 }) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const hasMultipleUnits = line.units.length > 1;
 
@@ -1680,7 +1685,7 @@ function MaterialCard({
     const u = line.units[0];
     if (!u) return null;
     return (
-      <div className="px-4 py-3">
+      <div className="px-4 py-3 hover:bg-[#EAF1FC] transition-colors duration-150">
         <div className="flex items-center justify-between mb-1">
           <span className="font-mono text-xs text-[#124191] font-semibold">
             {line.partNumber}
@@ -1697,7 +1702,7 @@ function MaterialCard({
         <div className="flex items-center justify-between">
           <span className="text-sm font-bold text-[#0F172A]">
             {u.quantity}{" "}
-            <span className="text-xs font-normal text-slate-400">en stock</span>
+            <span className="text-xs font-normal text-slate-400">{t("warehouse.inStock")}</span>
           </span>
           <div className="flex items-center gap-2">
             {DEFECT_ALLOWED_DOMAINS.includes(line.domain) ? (
@@ -1709,7 +1714,7 @@ function MaterialCard({
             ) : (
               <span
                 className="text-xs text-slate-300"
-                title="Cette catégorie de matériel ne peut pas être marquée défectueuse"
+                title={t("warehouse.categoryNotDefectible")}
               >
                 —
               </span>
@@ -1719,7 +1724,7 @@ function MaterialCard({
                 onClick={onEdit}
                 className="text-[11px] text-[#124191] hover:underline whitespace-nowrap"
               >
-                Modifier
+                {t("common.edit")}
               </button>
             )}
           </div>
@@ -1732,18 +1737,18 @@ function MaterialCard({
     <div>
       <button
         onClick={() => setExpanded((e) => !e)}
-        className="w-full text-left px-4 py-3"
+        className="w-full text-left px-4 py-3 hover:bg-[#EAF1FC] transition-colors duration-150"
       >
         <div className="flex items-center justify-between mb-1">
           <span className="font-mono text-xs text-[#124191] font-semibold">
             <span
-              className={`inline-block mr-1 text-slate-400 transition-transform ${expanded ? "rotate-90" : ""}`}
+              className={`inline-block mr-1 text-slate-400 transition-transform duration-200 ${expanded ? "rotate-90" : ""}`}
             >
               ▸
             </span>
             {line.partNumber}{" "}
             <span className="text-slate-400 font-normal">
-              · {line.units.length} unités
+              {t("warehouse.unitsCount", { count: line.units.length })}
             </span>
           </span>
           <StatusPill defective={line.defectiveQuantity > 0} />
@@ -1752,11 +1757,11 @@ function MaterialCard({
         <div className="flex items-center gap-3 text-sm">
           <span className="font-bold text-[#0F172A]">
             {line.totalQuantity}{" "}
-            <span className="text-xs font-normal text-slate-400">total</span>
+            <span className="text-xs font-normal text-slate-400">{t("common.total")}</span>
           </span>
           {line.defectiveQuantity > 0 && (
             <span className="font-mono text-red-600 text-xs">
-              {line.defectiveQuantity} défectueux
+              {line.defectiveQuantity} {t("warehouse.defectiveStatus").toLowerCase()}
             </span>
           )}
         </div>
@@ -1770,7 +1775,7 @@ function MaterialCard({
               className="px-4 py-2.5 pl-8 flex items-center justify-between"
             >
               <span className="font-mono text-xs text-slate-500">
-                {line.isSerialized ? u.serialNumber : `Lot ${u.serialNumber}`}
+                {line.isSerialized ? u.serialNumber : t("warehouse.lotLabel", { serial: u.serialNumber })}
                 <span className="ml-2 text-slate-400">· {u.quantity}</span>
               </span>
               <div className="flex items-center gap-2">
@@ -1783,7 +1788,7 @@ function MaterialCard({
                 ) : (
                   <span
                     className="text-xs text-slate-300"
-                    title="Cette catégorie de matériel ne peut pas être marquée défectueuse"
+                    title={t("warehouse.categoryNotDefectible")}
                   >
                     —
                   </span>

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { apiFetch } from "../apiFetch";
 import { API_BASE } from "../config";
 import { useFetchState } from "../useFetchState";
@@ -10,6 +11,7 @@ interface UsageItem { partNumber: string; name: string; totalDeployed: number; t
 const COLORS = ["#124191", "#33D6C7", "#F2790B", "#7C3AED", "#DC2626"];
 
 export default function SubcontractorDeploymentPanel({ projectId }: { projectId: number }) {
+  const { t } = useTranslation();
   const [mounted, setMounted] = useState(false); // déclenche l'animation de croissance des barres
 
   const {
@@ -54,13 +56,13 @@ export default function SubcontractorDeploymentPanel({ projectId }: { projectId:
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
       {/* Diagramme en bâtonnets */}
       <div className="bg-white rounded-xl border border-slate-200 p-5 animate-[slideDown_.3s_ease]">
-        <h3 className="text-sm font-bold text-[#0F172A] mb-5">Matériel déployé par sous-traitant</h3>
+        <h3 className="text-sm font-bold text-[#0F172A] mb-5">{t('deploymentMatrix.title')}</h3>
         {statsError ? (
           <ErrorState message={statsError} onRetry={retryStats} />
         ) : statsLoading || !stats ? (
           <div className="h-48 bg-slate-100 rounded animate-pulse" />
         ) : stats.length === 0 ? (
-          <p className="text-xs text-slate-400 text-center py-10">Aucun déploiement enregistré pour ce projet.</p>
+          <p className="text-xs text-slate-400 text-center py-10">{t('subcontractorPanel.noDeployments')}</p>
         ) : (
           <div className="flex items-end gap-4 h-48 px-2">
             {stats.map((s, i) => {
@@ -87,7 +89,7 @@ export default function SubcontractorDeploymentPanel({ projectId }: { projectId:
                   <span className="text-[11px] font-semibold text-slate-600 mt-2 text-center truncate w-full">
                     {s.subcontractor}
                   </span>
-                  <span className="text-[10px] text-slate-400">{s.distinctSites} sites</span>
+                  <span className="text-[10px] text-slate-400">{t('subcontractorPanel.sitesCount', { count: s.distinctSites })}</span>
                 </div>
               );
             })}
@@ -97,7 +99,7 @@ export default function SubcontractorDeploymentPanel({ projectId }: { projectId:
 
       {/* Plus / moins déployé — inchangé */}
       <div className="bg-white rounded-xl border border-slate-200 p-5 animate-[slideDown_.3s_ease]">
-        <h3 className="text-sm font-bold text-[#0F172A] mb-4">Matériel le plus / moins déployé</h3>
+        <h3 className="text-sm font-bold text-[#0F172A] mb-4">{t('subcontractorPanel.rankingTitle')}</h3>
         {rankingError ? (
           <ErrorState message={rankingError} onRetry={retryRanking} />
         ) : rankingLoading || !ranking ? (
@@ -105,7 +107,7 @@ export default function SubcontractorDeploymentPanel({ projectId }: { projectId:
         ) : (
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <p className="text-[10px] font-semibold text-emerald-600 uppercase tracking-wide mb-2">Le plus déployé</p>
+              <p className="text-[10px] font-semibold text-emerald-600 uppercase tracking-wide mb-2">{t('subcontractorPanel.mostDeployed')}</p>
               {ranking.mostUsed.length === 0 ? <p className="text-xs text-slate-400">—</p> : ranking.mostUsed.map((m) => (
                 <div key={m.partNumber} className="text-xs mb-1.5">
                   <div className="font-mono text-[#124191]">{m.partNumber}</div>
@@ -114,14 +116,14 @@ export default function SubcontractorDeploymentPanel({ projectId }: { projectId:
               ))}
             </div>
             <div>
-              <p className="text-[10px] font-semibold text-amber-600 uppercase tracking-wide mb-2">Reçu mais non déployé</p>
+              <p className="text-[10px] font-semibold text-amber-600 uppercase tracking-wide mb-2">{t('subcontractorPanel.receivedNotDeployed')}</p>
               {ranking.leastUsed.length === 0 ? (
-                <p className="text-xs text-slate-400">Tout le matériel reçu a été déployé.</p>
+                <p className="text-xs text-slate-400">{t('subcontractorPanel.allReceivedDeployed')}</p>
               ) : ranking.leastUsed.map((m) => (
                 <div key={m.partNumber} className="text-xs mb-1.5">
                   <div className="font-mono text-[#124191]">{m.partNumber}</div>
                   <div className="text-slate-500 truncate">
-                    {m.name} · <span className="font-semibold text-amber-700">{m.totalReceived} reçu(s)</span>
+                    {m.name} · <span className="font-semibold text-amber-700">{t('subcontractorPanel.receivedCount', { count: m.totalReceived })}</span>
                   </div>
                 </div>
               ))}

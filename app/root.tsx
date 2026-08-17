@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import {
   isRouteErrorResponse,
   Links,
@@ -10,6 +11,7 @@ import {
 import type { Route } from "./+types/root";
 import "./app.css";
 import { AuthProvider } from "./routes/authContext";
+import i18n, { LANG_STORAGE_KEY, SUPPORTED_LANGUAGES } from "./i18n";
 
 export const links: Route.LinksFunction = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -46,6 +48,16 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
+  // Resynchronise la langue choisie par l'utilisateur — après le montage seulement,
+  // pour ne jamais désaccorder le HTML rendu serveur (toujours 'fr') de la première
+  // passe client (voir le commentaire dans app/i18n.ts).
+  useEffect(() => {
+    const stored = window.localStorage.getItem(LANG_STORAGE_KEY);
+    if (stored && SUPPORTED_LANGUAGES.includes(stored as any) && stored !== i18n.language) {
+      i18n.changeLanguage(stored);
+    }
+  }, []);
+
   return (
     <AuthProvider>
       <Outlet />

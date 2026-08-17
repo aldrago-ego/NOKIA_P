@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { apiFetch } from "../apiFetch";
 import { useFetchState } from "../useFetchState";
 import ErrorState from "../Component/ErrorState";
+import { useTranslation } from "react-i18next";
 
 const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:5000/api";
 const DOMAINS = ["RAN", "Microwave", "Energy", "Core", "Consumables"];
@@ -23,6 +24,7 @@ interface Product {
 }
 
 export default function CategoryManager({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation();
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(
     null,
   );
@@ -110,9 +112,9 @@ export default function CategoryManager({ onClose }: { onClose: () => void }) {
       setNewCatName("");
       setShowNewCategory(false);
       loadCategories();
-      showToast("Catégorie créée");
+      showToast(t("category.createdToast"));
     } catch (err: any) {
-      setError(err.message || "Échec de la création.");
+      setError(err.message || t("category.createFailed"));
     } finally {
       setCreating(false);
     }
@@ -135,19 +137,19 @@ export default function CategoryManager({ onClose }: { onClose: () => void }) {
       loadProducts();
       loadCategories();
       showToast(
-        `${selectedProductIds.size} référence(s) assignée(s) à "${selectedCategory.name}"`,
+        t("category.assignedToast", { count: selectedProductIds.size, name: selectedCategory.name }),
       );
     } catch {
-      showToast("Échec de l'assignation");
+      showToast(t("category.assignFailed"));
     }
   }
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4 text-black">
-      <div className="bg-white rounded-xl w-full max-w-4xl max-h-[86vh] overflow-hidden shadow-2xl flex flex-col">
+      <div className="bg-white rounded-xl w-full max-w-4xl max-h-[86vh] overflow-hidden shadow-2xl flex flex-col animate-[slideUp_.3s_ease]">
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
           <h3 className="text-base font-bold text-[#0F172A]">
-            Gestion des catégories
+            {t("category.title")}
           </h3>
           <button
             onClick={onClose}
@@ -165,14 +167,14 @@ export default function CategoryManager({ onClose }: { onClose: () => void }) {
                 onClick={() => setShowNewCategory((v) => !v)}
                 className="w-full text-xs font-semibold text-[#124191] hover:underline text-left"
               >
-                + Nouvelle catégorie
+                {t("category.newCategory")}
               </button>
               {showNewCategory && (
                 <div className="mt-2 space-y-2">
                   <input
                     value={newCatName}
                     onChange={(e) => setNewCatName(e.target.value)}
-                    placeholder="Nom de la catégorie"
+                    placeholder={t("category.namePlaceholder")}
                     className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-xs"
                   />
 
@@ -193,7 +195,7 @@ export default function CategoryManager({ onClose }: { onClose: () => void }) {
                     disabled={creating}
                     className="w-full text-xs font-semibold text-white bg-[#124191] rounded-md py-1.5 disabled:opacity-60"
                   >
-                    {creating ? "Création…" : "Créer"}
+                    {creating ? t("category.creating") : t("category.create")}
                   </button>
                 </div>
               )}
@@ -213,7 +215,7 @@ export default function CategoryManager({ onClose }: { onClose: () => void }) {
                 </div>
               ) : categories.length === 0 ? (
                 <p className="text-xs text-slate-400 p-3">
-                  Aucune catégorie créée.
+                  {t("category.noCategories")}
                 </p>
               ) : (
                 categories.map((c) => (
@@ -228,15 +230,15 @@ export default function CategoryManager({ onClose }: { onClose: () => void }) {
                     <input
                       type="number"
                       min={0}
-                      placeholder="Seuil"
+                      placeholder={t("category.threshold")}
                       defaultValue={c.minimumStockThreshold ?? ""}
                       onBlur={(e) => saveThreshold(c.id, e.target.value)}
                       className="w-20 border border-slate-200 rounded-md px-2 py-1 text-xs font-mono text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#124191]"
-                      title="Seuil d'alerte stock bas"
+                      title={t("category.thresholdTitle")}
                     />
                     <div className="text-[10px] text-slate-400 flex justify-between mt-0.5">
                       <span>{c.domain}</span>
-                      <span>{c.productCount} réf.</span>
+                      <span>{t("category.refCount", { count: c.productCount })}</span>
                     </div>
                   </button>
                 ))
@@ -250,7 +252,7 @@ export default function CategoryManager({ onClose }: { onClose: () => void }) {
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Rechercher un code ou une description…"
+                placeholder={t("category.searchPlaceholder")}
                 className="flex-1 border border-slate-200 rounded-md px-3 py-1.5 text-sm"
               />
               <button
@@ -258,8 +260,7 @@ export default function CategoryManager({ onClose }: { onClose: () => void }) {
                 disabled={!selectedCategory || selectedProductIds.size === 0}
                 className="text-xs font-semibold text-white bg-[#124191] rounded-md px-3 py-1.5 disabled:opacity-40 whitespace-nowrap"
               >
-                Assigner à "{selectedCategory?.name ?? "…"}" (
-                {selectedProductIds.size})
+                {t("category.assignTo", { name: selectedCategory?.name ?? "…", count: selectedProductIds.size })}
               </button>
             </div>
 
@@ -277,7 +278,7 @@ export default function CategoryManager({ onClose }: { onClose: () => void }) {
                 </div>
               ) : products.length === 0 ? (
                 <p className="text-xs text-slate-400 p-3">
-                  Aucune référence trouvée.
+                  {t("category.noProductsFound")}
                 </p>
               ) : (
                 <table className="w-full text-sm">

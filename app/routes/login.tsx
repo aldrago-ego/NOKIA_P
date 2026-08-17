@@ -1,9 +1,12 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "./authContext";
 import LoadingButton from "../Component/LoadingButton";
+import LanguageSwitcher from "../Component/LanguageSwitcher";
 
 export default function LoginPage() {
+  const { t } = useTranslation();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -35,7 +38,7 @@ export default function LoginPage() {
     setViewerSubmitting(true);
     try {
       setError(false);
-      await login("viewer", "ChangeMoi123!");
+      await login("viewer", "LOL222222!");
       navigate("/");
     } catch {
       setError(true);
@@ -51,6 +54,10 @@ export default function LoginPage() {
     >
       <div className="absolute inset-0 bg-black/10" />
 
+      <div className="absolute top-4 right-4 md:top-6 md:right-6 z-20">
+        <LanguageSwitcher variant="dark" />
+      </div>
+
       <div className="min-h-screen w-full relative z-10 px-6 md:px-12 md:grid md:grid-cols-3 md:items-center flex flex-col justify-center gap-8">
 
   {/* 2. COLONNE GAUCHE : Texte de marque */}
@@ -59,24 +66,23 @@ export default function LoginPage() {
       NOKIA
     </span>
     <p className="text-blue-200 text-sm mt-2 mb-4">
-      Nexa App — Gestion de stock
+      {t("login.tagline")}
     </p>
     <div className="w-16 h-0.5 bg-blue-400 mb-4" />
     <p className="text-blue-100/80 text-sm leading-relaxed">
-      Gérez efficacement vos stocks, suivez vos inventaires et optimisez
-      vos opérations au quotidien.
+      {t("login.heroText")}
     </p>
   </div>
 
   {/* 3. COLONNE CENTRE : Carte de connexion (Centrée au milieu grâce à justify-self-center) */}
-  <div className="bg-white rounded-2xl p-8 sm:p-10 shadow-2xl animate-[slideUp_.4s_ease] 
+  <div className="bg-white rounded-2xl p-8 sm:p-10 shadow-2xl animate-[slideUp_.4s_ease]
                   w-full max-w-md md:justify-self-center">
           <div className="mb-6 text-center">
             <span className="text-3xl font-black tracking-[0.15em] text-[#124191]">
               NOKIA
             </span>
             <p className="text-xs text-slate-400 mt-1.5">
-              Nexa App — Gestion de stock
+              {t("login.tagline")}
             </p>
             <div className="w-10 h-0.5 bg-[#124191] mx-auto mt-3" />
           </div>
@@ -84,13 +90,13 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit}>
             {error && (
               <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-4 transition-all">
-                Identifiants invalides ou manquants.
+                {t("login.invalidCredentials")}
               </div>
             )}
 
             <div className="mb-3">
               <label className="block text-xs font-semibold text-slate-500 mb-1.5">
-                Identifiant
+                {t("login.username")}
               </label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
@@ -108,7 +114,7 @@ export default function LoginPage() {
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="admin"
+                  placeholder={t("login.usernamePlaceholder")}
                   className="w-full border border-slate-200 rounded-lg pl-9 pr-3 py-2.5 text-sm text-black focus:outline-none focus:ring-2 focus:ring-[#124191]/30 focus:border-[#124191] transition-all"
                 />
               </div>
@@ -116,7 +122,7 @@ export default function LoginPage() {
 
             <div className="mb-5">
               <label className="block text-xs font-semibold text-slate-500 mb-1.5">
-                Mot de passe
+                {t("login.password")}
               </label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
@@ -153,7 +159,7 @@ export default function LoginPage() {
 
             <LoadingButton
               loading={submitting}
-              loadingText="Connexion en cours…"
+              loadingText={t("login.signingIn")}
               type="submit"
               className="w-full py-2.5 text-sm font-semibold text-white bg-[#124191] rounded-lg hover:bg-[#0d3373] hover:shadow-lg transition-all duration-200"
             >
@@ -161,13 +167,13 @@ export default function LoginPage() {
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
                   <path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4M10 17l5-5-5-5M15 12H3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
-                Se connecter
+                {t("login.signIn")}
               </span>
             </LoadingButton>
 
             <LoadingButton
               loading={viewerSubmitting}
-              loadingText="Chargement…"
+              loadingText={t("login.loadingViewer")}
               type="button"
               onClick={handleViewerAccess}
               className="w-full py-2.5 text-sm font-medium text-[#124191] bg-white border border-slate-200 rounded-lg hover:bg-slate-50 hover:border-[#124191]/40 transition-all duration-200 mt-2"
@@ -177,20 +183,19 @@ export default function LoginPage() {
                   <path d="M20 21a8 8 0 10-16 0" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
                   <circle cx="12" cy="7" r="4" stroke="currentColor" strokeWidth="1.6" />
                 </svg>
-                Continuer en mode Visiteur
+                {t("login.continueAsViewer")}
               </span>
             </LoadingButton>
           </form>
 
           <div className="flex items-center gap-3 my-4">
             <div className="flex-1 h-px bg-slate-100" />
-            <span className="text-[10px] text-slate-300 uppercase tracking-wide">ou</span>
+            <span className="text-[10px] text-slate-300 uppercase tracking-wide">{t("login.or")}</span>
             <div className="flex-1 h-px bg-slate-100" />
           </div>
 
           <p className="text-[11px] text-slate-400 text-center">
-            Le rôle associé à votre compte déterminera automatiquement vos
-            droits d'accès.
+            {t("login.roleNotice")}
           </p>
         </div>
         <div className="hidden md:block" />

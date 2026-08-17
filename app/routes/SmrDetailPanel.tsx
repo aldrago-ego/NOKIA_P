@@ -6,6 +6,8 @@ import LoadingButton from "../Component/LoadingButton";
 import SmrImportForm from "./smrImportForm";
 import { useFetchState } from "../useFetchState";
 import ErrorState from "../Component/ErrorState";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:5000/api";
 
 interface SmrItem {
@@ -37,29 +39,99 @@ interface Smr {
   smrRequestSiteItems?: SmrSiteItem[]; // NOUVEAU
   itemsCount: number; // nombre total de références demandées (pour SMR par site)
   siteItemsCount: number; // nombre total de références demandées (pour SMR par sous-traitant)
+  hasShortfall?: boolean; // NOUVEAU — approuvée avec allocation partielle (matériel manquant)
 }
 
-function statusPill(status: string) {
+// Forme commune des lignes en rupture, renvoyées par le backend (409) pour les deux modes
+// (par site et par sous-traitant) : code, description, demandé, disponible, manquant.
+interface ShortageRow {
+  hardwareProductId?: number;
+  partNumber: string;
+  name?: string;
+  requested: number;
+  available: number;
+  missing: number;
+}
+
+// t est passé en paramètre (plutôt qu'appelé via useTranslation() ici) car cette
+// fonction est invoquée directement dans des boucles JSX, à un nombre de fois variable
+// — un hook React n'y serait pas légal.
+function statusPill(status: string, hasShortfall: boolean | undefined, t: TFunction) {
   if (status === "Approved")
-    return (
+    return hasShortfall ? (
+      <span className="text-xs font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">
+        {t("smr.status.approvedPartial")}
+      </span>
+    ) : (
       <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
-        Approuvée
+        {t("smr.status.approved")}
       </span>
     );
   if (status === "Rejected")
     return (
       <span className="text-xs font-semibold text-red-700 bg-red-50 px-2 py-0.5 rounded-full">
-        Rejetée
+        {t("smr.status.rejected")}
       </span>
     );
   return (
     <span className="text-xs font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">
-      En attente
+      {t("smr.status.pending")}
     </span>
   );
 }
 
+// Tableau réutilisable listant les références en rupture avant approbation — même
+// forme pour le mode "par site" et le mode "par sous-traitant".
+function ShortageTable({ shortages }: { shortages: ShortageRow[] }) {
+  const { t } = useTranslation();
+  return (
+    <div className="bg-amber-50 border border-amber-200 rounded-lg overflow-hidden mb-4">
+      <div className="px-4 py-2.5 border-b border-amber-200">
+        <p className="text-sm font-semibold text-amber-800">
+          {t("smr.shortageTable.title", { count: shortages.length })}
+        </p>
+      </div>
+      <div className="overflow-x-auto max-h-48 overflow-y-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="text-[10px] text-amber-700 uppercase tracking-wide">
+              <th className="text-left font-medium px-4 py-2">{t("common.code")}</th>
+              <th className="text-left font-medium px-4 py-2">{t("common.description")}</th>
+              <th className="text-right font-medium px-4 py-2">{t("smr.shortageTable.requested")}</th>
+              <th className="text-right font-medium px-4 py-2">{t("smr.shortageTable.available")}</th>
+              <th className="text-right font-medium px-4 py-2">{t("smr.shortageTable.missing")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {shortages.map((s) => (
+              <tr
+                key={s.hardwareProductId ?? s.partNumber}
+                className="border-t border-amber-100"
+              >
+                <td className="px-4 py-1.5 font-mono text-amber-900">
+                  {s.partNumber}
+                </td>
+                <td className="px-4 py-1.5 text-amber-800">{s.name}</td>
+                <td className="px-4 py-1.5 text-right font-mono text-amber-800">
+                  {s.requested}
+                </td>
+                <td className="px-4 py-1.5 text-right font-mono text-amber-800">
+                  {s.available}
+                </td>
+                <td className="px-4 py-1.5 text-right font-mono font-bold text-red-600">
+                  {s.missing}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 export default function SmrDetailPanel({ projectId }: { projectId: number }) {
+  const { t } = useTranslation();
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [showImportForm, setShowImportForm] = useState(false);
@@ -84,13 +156,13 @@ export default function SmrDetailPanel({ projectId }: { projectId: number }) {
           onClick={() => setShowCreateForm(true)}
           className="text-xs font-semibold text-[#124191] bg-white border border-slate-200 rounded-lg px-3 py-1.5 hover:border-[#124191]"
         >
-          + Nouvelle SMR (par site)
+          {t("smr.newSiteRequest")}
         </button>
         <button
           onClick={() => setShowImportForm(true)}
           className="text-xs font-semibold text-white bg-[#124191] rounded-lg px-3 py-1.5 hover:bg-[#0d3373]"
         >
-          + Importer SMR (sous-traitant)
+          {t("smr.importSubcontractor")}
         </button>
       </div>
       <div className="table-wrap">
@@ -107,19 +179,19 @@ export default function SmrDetailPanel({ projectId }: { projectId: number }) {
           </div>
         ) : smrs.length === 0 ? (
           <p className="text-sm text-slate-400 text-center py-6">
-            Aucune SMR pour ce projet.
+            {t("smr.noSmrForProject")}
           </p>
         ) : (
           <table className="w-full text-black text-sm border border-slate-100 rounded-lg">
             <thead>
               <tr className="text-xs text-slate-400 uppercase tracking-wide border-b border-slate-100">
-                <th className="text-left font-medium px-4 py-2.5">N° SMR</th>
-                <th className="text-left font-medium px-4 py-2.5">Client</th>
-                <th className="text-left font-medium px-4 py-2.5">Entrepôt</th>
+                <th className="text-left font-medium px-4 py-2.5">{t("smr.table.number")}</th>
+                <th className="text-left font-medium px-4 py-2.5">{t("common.client")}</th>
+                <th className="text-left font-medium px-4 py-2.5">{t("common.warehouse")}</th>
                 <th className="text-left font-medium px-4 py-2.5">
-                  Réf. demandées
+                  {t("smr.table.requestedRefs")}
                 </th>
-                <th className="text-left font-medium px-4 py-2.5">Statut</th>
+                <th className="text-left font-medium px-4 py-2.5">{t("common.status")}</th>
               </tr>
             </thead>
             <tbody>
@@ -139,7 +211,9 @@ export default function SmrDetailPanel({ projectId }: { projectId: number }) {
                   <td className="px-4 py-2.5 text-slate-500">
                     {s.itemsCount > 0 ? s.itemsCount : s.siteItemsCount}
                   </td>
-                  <td className="px-4 py-2.5">{statusPill(s.status)}</td>
+                  <td className="px-4 py-2.5">
+                    {statusPill(s.status, s.hasShortfall, t)}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -189,10 +263,11 @@ function SmrModal({
   onClose: () => void;
   onDone: () => void;
 }) {
+  const { t } = useTranslation();
   // erreur de mutation (approbation/rejet) — distincte de l'erreur de chargement ci-dessous
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [shortages, setShortages] = useState<any[] | null>(null);
+  const [shortages, setShortages] = useState<ShortageRow[] | null>(null);
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState("");
   const [actor, setActor] = useState("");
@@ -235,7 +310,7 @@ function SmrModal({
       if (!res.ok) throw new Error(await res.text());
       onDone();
     } catch (err: any) {
-      setError(err.message || "Échec de l'approbation.");
+      setError(err.message || t("smr.approvalFailed"));
       setBusy(false);
     }
   }
@@ -252,7 +327,7 @@ function SmrModal({
       if (!res.ok) throw new Error(await res.text());
       onDone();
     } catch (err: any) {
-      setError(err.message || "Échec du rejet.");
+      setError(err.message || t("smr.rejectFailed"));
       setBusy(false);
     }
   }
@@ -290,10 +365,10 @@ function SmrModal({
           ) : (
             <>
               <div className="mb-4 flex items-center gap-2">
-                {statusPill(smr.status)}
+                {statusPill(smr.status, smr.hasShortfall, t)}
                 {smr.subcontractor && (
                   <span className="text-xs font-semibold text-slate-500">
-                    Sous-traitant : {smr.subcontractor.name}
+                    {t("smr.subcontractorLabel", { name: smr.subcontractor.name })}
                   </span>
                 )}
               </div>
@@ -318,19 +393,20 @@ function SmrModal({
                   <table className="w-full text-sm mb-4">
                     <thead>
                       <tr className="text-xs text-slate-400 border-b border-slate-100">
-                        <th className="text-left font-medium py-2">Code</th>
+                        <th className="text-left font-medium py-2">{t("common.code")}</th>
                         <th className="text-left font-medium py-2">
-                          Description
+                          {t("common.description")}
                         </th>
-                        <th className="text-right font-medium py-2">Demandé</th>
-                        <th className="text-right font-medium py-2">Alloué</th>
+                        <th className="text-right font-medium py-2">{t("smr.itemsTable.requested")}</th>
+                        <th className="text-right font-medium py-2">{t("smr.itemsTable.allocated")}</th>
                       </tr>
                     </thead>
                     <tbody>
                       {smr.items.map((it) => {
-                        const shortage = shortages?.find(
-                          (s) => s.hardwareProductId === it.hardwareProductId,
-                        );
+                        // Manque persistant sur une SMR déjà approuvée (allocation partielle)
+                        const persistentShortfall =
+                          smr.status === "Approved" &&
+                          it.allocatedQuantity < it.requestedQuantity;
                         return (
                           <tr key={it.id} className="border-b border-slate-50">
                             <td className="py-2 font-mono text-[#124191]">
@@ -341,9 +417,12 @@ function SmrModal({
                               {it.requestedQuantity}
                             </td>
                             <td className="py-2 text-right font-mono">
-                              {shortage ? (
-                                <span className="text-red-600">
-                                  {shortage.available} dispo
+                              {persistentShortfall ? (
+                                <span
+                                  className="text-red-600 font-semibold"
+                                  title={t("smr.allocatedTitle", { allocated: it.allocatedQuantity, requested: it.requestedQuantity })}
+                                >
+                                  {t("smr.allocatedMissing", { allocated: it.allocatedQuantity, missing: it.requestedQuantity - it.allocatedQuantity })}
                                 </span>
                               ) : (
                                 it.allocatedQuantity || "—"
@@ -362,28 +441,38 @@ function SmrModal({
                   )}
 
                   {shortages && (
-                    <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mb-4 text-sm">
-                      <p className="font-semibold mb-2 text-amber-800">
-                        Stock insuffisant pour {shortages.length} référence(s) :
-                      </p>
-                      <ul className="text-xs space-y-1 mb-2 max-h-40 overflow-y-auto">
-                        {shortages.map((s: any) => (
-                          <li
-                            key={s.partNumber}
-                            className="font-mono text-amber-900"
-                          >
-                            {s.partNumber} — demandé {s.requested}, disponible{" "}
-                            {s.available}
-                          </li>
-                        ))}
-                      </ul>
+                    <>
+                      <ShortageTable shortages={shortages} />
                       <button
                         onClick={() => handleApprove(true)}
                         disabled={busy}
-                        className="text-xs font-semibold text-amber-900 underline"
+                        className="text-xs font-semibold text-amber-900 underline -mt-2 mb-4 block"
                       >
-                        Approuver quand même avec allocation partielle
+                        {t("smr.approveAnyway")}
                       </button>
+                    </>
+                  )}
+
+                  {smr.status === "Approved" && smr.hasShortfall && !shortages && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mb-4">
+                      <p className="text-sm text-amber-800 mb-3">
+                        {t("smr.completeApprovalText")}
+                      </p>
+                      <input
+                        value={actor}
+                        onChange={(e) => setActor(e.target.value)}
+                        placeholder={t("common.yourName")}
+                        className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-3"
+                      />
+                      <LoadingButton
+                        onClick={() => handleApprove(false)}
+                        disabled={busy}
+                        loading={busy}
+                        loadingText={t("smr.verifying")}
+                        className="px-4 py-2 text-sm font-semibold text-white bg-[#124191] rounded-lg hover:bg-[#0d3373] disabled:opacity-60"
+                      >
+                        {t("smr.completeApproval")}
+                      </LoadingButton>
                     </div>
                   )}
 
@@ -392,7 +481,7 @@ function SmrModal({
                       <input
                         value={actor}
                         onChange={(e) => setActor(e.target.value)}
-                        placeholder="Votre nom (superviseur)"
+                        placeholder={t("common.yourName")}
                         className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-3"
                       />
 
@@ -400,7 +489,7 @@ function SmrModal({
                         <input
                           value={reason}
                           onChange={(e) => setReason(e.target.value)}
-                          placeholder="Motif du rejet (optionnel)"
+                          placeholder={t("smr.rejectReasonPlaceholder")}
                           className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-3"
                         />
                       )}
@@ -413,16 +502,16 @@ function SmrModal({
                               disabled={busy}
                               className="px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 rounded-lg"
                             >
-                              Rejeter
+                              {t("smr.reject")}
                             </button>
                             <LoadingButton
                               onClick={() => handleApprove(false)}
                               disabled={busy}
                               loading={busy}
-                              loadingText="Traitement…"
+                              loadingText={t("smr.processing")}
                               className="px-4 py-2 text-sm font-semibold text-white bg-[#124191] rounded-lg hover:bg-[#0d3373] disabled:opacity-60"
                             >
-                              Approuver
+                              {t("smr.approve")}
                             </LoadingButton>
                           </>
                         ) : (
@@ -431,17 +520,17 @@ function SmrModal({
                               onClick={() => setRejecting(false)}
                               disabled={busy}
                               loading={busy}
-                              loadingText="Annulation…"
+                              loadingText={t("smr.cancelling")}
                               className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
                             >
-                              Annuler
+                              {t("common.cancel")}
                             </LoadingButton>
                             <button
                               onClick={handleReject}
                               disabled={busy}
                               className="px-4 py-2 text-sm font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-60"
                             >
-                              {busy ? "Rejet…" : "Confirmer le rejet"}
+                              {busy ? t("smr.rejecting") : t("smr.confirmReject")}
                             </button>
                           </>
                         )}
@@ -475,7 +564,7 @@ function SmrSubcontractorReview({
 }: {
   smr: any;
   error: string | null;
-  shortages: any[] | null;
+  shortages: ShortageRow[] | null;
   busy: boolean;
   onApprove: (
     force: boolean,
@@ -489,6 +578,7 @@ function SmrSubcontractorReview({
   actor: string;
   setActor: (v: string) => void;
 }) {
+  const { t } = useTranslation();
   const [confirmed, setConfirmed] = useState<Record<number, number>>(() =>
     Object.fromEntries(
       (smr.smrRequestSiteItems ?? []).map((it: any) => [
@@ -519,9 +609,7 @@ function SmrSubcontractorReview({
   return (
     <div>
       <p className="text-xs text-slate-400 mb-3">
-        Comparez ce qui a été importé du fichier Excel (colonne "Sur le papier")
-        avec ce que vous constatez réellement sur site, puis ajustez la quantité
-        confirmée si nécessaire.
+        {t("smr.subcontractorReview.compareText")}
       </p>
 
       <div className="max-h-64 overflow-y-auto mb-4">
@@ -533,47 +621,77 @@ function SmrSubcontractorReview({
             <table className="w-full text-sm border border-t-0 border-slate-100 rounded-b-md">
               <thead>
                 <tr className="text-[10px] text-slate-400 border-b border-slate-100">
-                  <th className="text-left font-medium px-2 py-1.5">Code</th>
+                  <th className="text-left font-medium px-2 py-1.5">{t("common.code")}</th>
                   <th className="text-right font-medium px-2 py-1.5">
-                    Sur le papier
+                    {t("smr.subcontractorReview.onPaper")}
                   </th>
                   <th className="text-right font-medium px-2 py-1.5">
-                    Confirmé
+                    {t("smr.subcontractorReview.confirmed")}
                   </th>
+                  {smr.status !== "Pending" && (
+                    <th className="text-right font-medium px-2 py-1.5">
+                      {t("smr.itemsTable.allocated")}
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody>
-                {items.map((it: any) => (
-                  <tr key={it.id} className="border-b border-slate-50">
-                    <td className="px-2 py-1.5">
-                      <span className="font-mono text-[#124191] text-xs">
-                        {it.hardwareProduct.partNumber}
-                      </span>
-                      <span className="block text-slate-500 text-[11px]">
-                        {it.hardwareProduct.name}
-                      </span>
-                    </td>
+                {items.map((it: any) => {
+                  const persistentShortfall =
+                    smr.status === "Approved" &&
+                    it.allocatedQuantity < it.requestedQuantity;
+                  return (
+                    <tr key={it.id} className="border-b border-slate-50">
+                      <td className="px-2 py-1.5">
+                        <span className="font-mono text-[#124191] text-xs">
+                          {it.hardwareProduct.partNumber}
+                        </span>
+                        <span className="block text-slate-500 text-[11px]">
+                          {it.hardwareProduct.name}
+                        </span>
+                      </td>
 
-                    <td className="px-2 py-1.5 text-right font-mono text-slate-400 text-xs">
-                      {it.requestedQuantity}
-                    </td>
-                    <td className="px-2 py-1.5 text-right">
-                      <input
-                        type="number"
-                        min={0}
-                        max={it.requestedQuantity}
-                        value={confirmed[it.id] ?? it.requestedQuantity}
-                        onChange={(e) =>
-                          setConfirmed((prev) => ({
-                            ...prev,
-                            [it.id]: parseInt(e.target.value) || 0,
-                          }))
-                        }
-                        className="w-16 border border-slate-200 rounded px-1.5 py-0.5 text-xs font-mono text-right"
-                      />
-                    </td>
-                  </tr>
-                ))}
+                      <td className="px-2 py-1.5 text-right font-mono text-slate-400 text-xs">
+                        {it.requestedQuantity}
+                      </td>
+                      <td className="px-2 py-1.5 text-right">
+                        {smr.status === "Pending" ? (
+                          <input
+                            type="number"
+                            min={0}
+                            max={it.requestedQuantity}
+                            value={confirmed[it.id] ?? it.requestedQuantity}
+                            onChange={(e) =>
+                              setConfirmed((prev) => ({
+                                ...prev,
+                                [it.id]: parseInt(e.target.value) || 0,
+                              }))
+                            }
+                            className="w-16 border border-slate-200 rounded px-1.5 py-0.5 text-xs font-mono text-right"
+                          />
+                        ) : (
+                          <span className="font-mono text-xs">
+                            {it.requestedQuantity}
+                          </span>
+                        )}
+                      </td>
+                      {smr.status !== "Pending" && (
+                        <td className="px-2 py-1.5 text-right font-mono text-xs">
+                          {persistentShortfall ? (
+                            <span
+                              className="text-red-600 font-semibold"
+                              title={t("smr.allocatedTitle", { allocated: it.allocatedQuantity, requested: it.requestedQuantity })}
+                            >
+                              {t("smr.allocatedMissing", { allocated: it.allocatedQuantity, missing: it.requestedQuantity - it.allocatedQuantity })}
+                            </span>
+                          ) : (
+                            it.allocatedQuantity || "—"
+                          )}
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -586,15 +704,38 @@ function SmrSubcontractorReview({
         </div>
       )}
       {shortages && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mb-4 text-sm text-amber-800">
-          Stock insuffisant pour {shortages.length} référence(s).
+        <>
+          <ShortageTable shortages={shortages} />
           <button
             onClick={() => handleApproveClick(true)}
             disabled={busy}
-            className="block mt-2 text-xs font-semibold text-amber-900 underline"
+            className="text-xs font-semibold text-amber-900 underline -mt-2 mb-4 block"
           >
-            Approuver quand même avec allocation partielle
+            {t("smr.approveAnyway")}
           </button>
+        </>
+      )}
+
+      {smr.status === "Approved" && smr.hasShortfall && !shortages && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mb-4">
+          <p className="text-sm text-amber-800 mb-3">
+            {t("smr.completeApprovalText")}
+          </p>
+          <input
+            value={actor}
+            onChange={(e) => setActor(e.target.value)}
+            placeholder={t("common.yourName")}
+            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-3"
+          />
+          <LoadingButton
+            onClick={() => handleApproveClick(false)}
+            disabled={busy}
+            loading={busy}
+            loadingText={t("smr.verifying")}
+            className="px-4 py-2 text-sm font-semibold text-white bg-[#124191] rounded-lg hover:bg-[#0d3373] disabled:opacity-60"
+          >
+            {t("smr.completeApproval")}
+          </LoadingButton>
         </div>
       )}
 
@@ -603,14 +744,14 @@ function SmrSubcontractorReview({
           <input
             value={actor}
             onChange={(e) => setActor(e.target.value)}
-            placeholder="Votre nom (superviseur)"
+            placeholder={t("common.yourName")}
             className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-3"
           />
           {rejecting && (
             <input
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              placeholder="Motif du rejet (optionnel)"
+              placeholder={t("smr.rejectReasonPlaceholder")}
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-3"
             />
           )}
@@ -622,16 +763,16 @@ function SmrSubcontractorReview({
                   disabled={busy}
                   className="px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 rounded-lg"
                 >
-                  Rejeter
+                  {t("smr.reject")}
                 </button>
                 <LoadingButton
                   onClick={() => handleApproveClick(false)}
                   disabled={busy}
                   loading={busy}
-                  loadingText="Traitement…"
+                  loadingText={t("smr.processing")}
                   className="px-4 py-2 text-sm font-semibold text-white bg-[#124191] rounded-lg hover:bg-[#0d3373] disabled:opacity-60"
                 >
-                  Approuver
+                  {t("smr.approve")}
                 </LoadingButton>
               </>
             ) : (
@@ -640,17 +781,17 @@ function SmrSubcontractorReview({
                   onClick={() => setRejecting(false)}
                   disabled={busy}
                   loading={busy}
-                  loadingText="Annulation…"
+                  loadingText={t("smr.cancelling")}
                   className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
                 >
-                  Annuler
+                  {t("common.cancel")}
                 </LoadingButton>
                 <button
                   onClick={onReject}
                   disabled={busy}
                   className="px-4 py-2 text-sm font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-60"
                 >
-                  {busy ? "Rejet…" : "Confirmer le rejet"}
+                  {busy ? t("smr.rejecting") : t("smr.confirmReject")}
                 </button>
               </>
             )}

@@ -4,6 +4,7 @@ import { API_BASE } from '../config';
 import { useAuth } from './authContext';
 import { useFetchState } from '../useFetchState';
 import ErrorState from '../Component/ErrorState';
+import { useTranslation } from 'react-i18next';
 
 interface Client {
   id: number;
@@ -13,6 +14,7 @@ interface Client {
 }
 
 export default function ClientsPage() {
+  const { t } = useTranslation();
   const { isElevated } = useAuth();
   const [showForm, setShowForm] = useState(false);
   const [search, setSearch] = useState('');
@@ -37,15 +39,15 @@ export default function ClientsPage() {
     <div className="p-6 bg-[#F4F6FA] min-h-full">
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
-          <h1 className="text-xl font-bold text-[#0F172A] mb-1">Clients</h1>
-          <p className="text-sm text-slate-500">Clients rattachés aux sites et demandes SMR</p>
+          <h1 className="text-xl font-bold text-[#0F172A] mb-1">{t('clients.title')}</h1>
+          <p className="text-sm text-slate-500">{t('clients.subtitle')}</p>
         </div>
         {isElevated && (
           <button
             onClick={() => setShowForm(true)}
             className="flex items-center gap-1.5 bg-[#124191] text-white text-sm font-semibold rounded-lg px-4 py-2.5 hover:bg-[#0d3373] transition-colors"
           >
-            + Nouveau client
+            {t('clients.newClient')}
           </button>
         )}
       </div>
@@ -53,7 +55,7 @@ export default function ClientsPage() {
       <input
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        placeholder="Rechercher un client…"
+        placeholder={t('clients.searchPlaceholder')}
         className="w-full max-w-md border border-slate-200 rounded-lg px-3 py-2 text-black mb-5"
       />
 
@@ -62,15 +64,15 @@ export default function ClientsPage() {
       ) : clientsLoading || !clients ? (
         <div className="space-y-2">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-14 bg-white border border-slate-200 rounded-xl animate-pulse" />)}</div>
       ) : filtered.length === 0 ? (
-        <p className="text-sm text-slate-400 text-center py-10">Aucun client trouvé.</p>
+        <p className="text-sm text-slate-400 text-center py-10">{t('clients.noClientsFound')}</p>
       ) : (
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-xs text-slate-400 uppercase tracking-wide border-b border-slate-100">
-                <th className="text-left font-medium px-5 py-3">Nom</th>
-                <th className="text-left font-medium px-5 py-3">Société</th>
-                <th className="text-left font-medium px-5 py-3">Email</th>
+                <th className="text-left font-medium px-5 py-3">{t('clients.table.name')}</th>
+                <th className="text-left font-medium px-5 py-3">{t('clients.table.company')}</th>
+                <th className="text-left font-medium px-5 py-3">{t('clients.table.email')}</th>
               </tr>
             </thead>
             <tbody>
@@ -97,6 +99,7 @@ export default function ClientsPage() {
 }
 
 function ClientCreateForm({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const { t } = useTranslation();
   const [name, setName] = useState('');
   const [companyName, setCompanyName] = useState('');
   const [email, setEmail] = useState('');
@@ -105,7 +108,7 @@ function ClientCreateForm({ onClose, onCreated }: { onClose: () => void; onCreat
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim()) return setError('Nom requis.');
+    if (!name.trim()) return setError(t('clients.createForm.nameRequired'));
 
     setSubmitting(true);
     setError(null);
@@ -118,7 +121,7 @@ function ClientCreateForm({ onClose, onCreated }: { onClose: () => void; onCreat
       if (!res.ok) throw new Error(await res.text());
       onCreated();
     } catch (err: any) {
-      setError(err.message || 'Échec de la création.');
+      setError(err.message || t('clients.createForm.createFailed'));
     } finally {
       setSubmitting(false);
     }
@@ -128,25 +131,25 @@ function ClientCreateForm({ onClose, onCreated }: { onClose: () => void; onCreat
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="bg-white rounded-xl w-full max-w-md p-6 shadow-2xl">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-base font-bold text-[#0F172A]">Nouveau client</h3>
+          <h3 className="text-base font-bold text-[#0F172A]">{t('clients.createForm.title')}</h3>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-black">✕</button>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4 text-black">
           {error && <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-4">{error}</div>}
 
-          <label className="block text-xs font-semibold text-slate-500 mb-1.5">Nom</label>
+          <label className="block text-xs font-semibold text-slate-500 mb-1.5">{t('clients.createForm.name')}</label>
           <input value={name} onChange={(e) => setName(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-3" />
 
-          <label className="block text-xs font-semibold text-slate-500 mb-1.5">Société</label>
+          <label className="block text-xs font-semibold text-slate-500 mb-1.5">{t('clients.createForm.company')}</label>
           <input value={companyName} onChange={(e) => setCompanyName(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-3" />
 
-          <label className="block text-xs font-semibold text-slate-500 mb-1.5">Email</label>
+          <label className="block text-xs font-semibold text-slate-500 mb-1.5">{t('clients.createForm.email')}</label>
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-5" />
 
           <div className="flex justify-end gap-2">
-            <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-lg">Annuler</button>
+            <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-lg">{t('common.cancel')}</button>
             <button type="submit" disabled={submitting} className="px-4 py-2 text-sm font-semibold text-white bg-[#124191] rounded-lg hover:bg-[#0d3373] disabled:opacity-60">
-              {submitting ? 'Création…' : 'Créer'}
+              {submitting ? t('clients.createForm.creating') : t('clients.createForm.create')}
             </button>
           </div>
         </form>

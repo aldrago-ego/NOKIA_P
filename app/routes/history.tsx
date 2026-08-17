@@ -4,6 +4,7 @@ import { API_BASE } from "../config";
 import { useProject } from "./project";
 import { useFetchState } from "../useFetchState";
 import ErrorState from "../Component/ErrorState";
+import { useTranslation } from "react-i18next";
 
 interface ActivityLog {
   id: number;
@@ -33,6 +34,7 @@ const ACTIVITY_ICON: Record<string, { icon: string; color: string }> = {
 const PAGE_SIZE = 25;
 
 export default function HistoryPage() {
+  const { t } = useTranslation();
   const { selectedProjectId, selectedProject } = useProject();
 
   const [page, setPage] = useState(1);
@@ -86,7 +88,7 @@ export default function HistoryPage() {
     <div className="p-6 bg-[#F4F6FA] min-h-full">
       <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 mb-1">
         <h1 className="text-lg sm:text-xl font-bold text-black">
-          Historique des activités
+          {t("history.title")}
         </h1>
         {selectedProject && (
           <span className="font-mono text-xs bg-[#EAF1FC] text-[#124191] px-2 py-0.5 rounded-full font-semibold">
@@ -95,7 +97,7 @@ export default function HistoryPage() {
         )}
       </div>
       <p className="text-sm text-slate-500 mb-6">
-        Historique complet des actions effectuées sur ce projet
+        {t("history.subtitle")}
       </p>
 
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-3">
@@ -104,17 +106,17 @@ export default function HistoryPage() {
           onChange={(e) => handleTypeChange(e.target.value)}
           className="w-full sm:w-auto border border-slate-200 rounded-lg px-3 py-2 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#124191]/30 text-black focus:border-[#124191] transition-all"
         >
-          <option value="">Tous les types d'activité</option>
-          {types?.map((t) => (
-            <option key={t} value={t}>
-              {t.replace(/_/g, " ")}
+          <option value="">{t("history.allTypes")}</option>
+          {types?.map((activityType) => (
+            <option key={activityType} value={activityType}>
+              {activityType.replace(/_/g, " ")}
             </option>
           ))}
         </select>
 
         {total > 0 && (
           <span className="text-xs text-slate-400">
-            {total} activité{total > 1 ? "s" : ""} au total
+            {t("history.totalCount", { count: total })}
           </span>
         )}
       </div>
@@ -133,7 +135,7 @@ export default function HistoryPage() {
           </div>
         ) : logs.length === 0 ? (
           <p className="px-5 py-10 text-center text-slate-400 text-sm">
-            Aucune activité trouvée.
+            {t("history.noActivities")}
           </p>
         ) : (
           <>
@@ -141,12 +143,12 @@ export default function HistoryPage() {
             <table className="w-full text-sm hidden sm:table">
               <thead>
                 <tr className="text-xs text-slate-400 uppercase tracking-wide border-b border-slate-100">
-                  <th className="text-left font-medium px-5 py-3">Date</th>
-                  <th className="text-left font-medium px-5 py-3">Type</th>
+                  <th className="text-left font-medium px-5 py-3">{t("common.date")}</th>
+                  <th className="text-left font-medium px-5 py-3">{t("common.type")}</th>
                   <th className="text-left font-medium px-5 py-3">
-                    Description
+                    {t("common.description")}
                   </th>
-                  <th className="text-left font-medium px-5 py-3">Par</th>
+                  <th className="text-left font-medium px-5 py-3">{t("common.by")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -212,7 +214,7 @@ export default function HistoryPage() {
                       {a.description}
                     </p>
                     <p className="text-[11px] text-slate-500">
-                      Par {a.performedBy}
+                      {t("history.byLabel", { name: a.performedBy })}
                     </p>
                   </div>
                 );
@@ -229,17 +231,17 @@ export default function HistoryPage() {
             disabled={page <= 1}
             className="px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold text-[#124191] bg-white border border-slate-200 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 whitespace-nowrap"
           >
-            ← <span className="hidden xs:inline">Précédent</span>
+            ← <span className="hidden xs:inline">{t("history.previous")}</span>
           </button>
           <span className="text-xs text-slate-400">
-            Page {page} / {totalPages}
+            {t("common.page")} {page} / {totalPages}
           </span>
           <button
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
             disabled={page >= totalPages}
             className="px-4 py-2 text-sm font-semibold text-[#124191] bg-white border border-slate-200 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50"
           >
-            Suivant →
+            {t("history.next")} →
           </button>
         </div>
       )}

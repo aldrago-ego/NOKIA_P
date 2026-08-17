@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../apiFetch';
 import { API_BASE } from '../config';
 
@@ -22,6 +23,7 @@ export default function ProductEditForm({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const { t } = useTranslation();
   const [product, setProduct] = useState<Product | null>(null);
   const [name, setName] = useState('');
   const [domain, setDomain] = useState('RAN');
@@ -40,7 +42,7 @@ export default function ProductEditForm({
         setMaterialGroup(p.materialGroup);
         setIsSerialized(p.isSerialized);
       })
-      .catch(() => setError('Impossible de charger cette fiche.'));
+      .catch(() => setError(t('forms.productEdit.loadFailed')));
   }, [hardwareProductId]);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -56,7 +58,7 @@ export default function ProductEditForm({
       if (!res.ok) throw new Error(await res.text());
       onSaved();
     } catch (err: any) {
-      setError(err.message || 'Échec de la mise à jour.');
+      setError(err.message || t('forms.correction.updateFailed'));
     } finally {
       setSubmitting(false);
     }
@@ -64,10 +66,10 @@ export default function ProductEditForm({
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4 text-black" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="bg-white rounded-xl w-full max-w-md p-6 shadow-2xl">
+      <div className="bg-white rounded-xl w-full max-w-md p-6 shadow-2xl animate-[slideUp_.3s_ease]">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-base font-bold text-[#0F172A]">
-            Modifier {product?.partNumber ?? '…'}
+            {t('forms.productEdit.editTitle', { code: product?.partNumber ?? '…' })}
           </h3>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600">✕</button>
         </div>
@@ -78,26 +80,26 @@ export default function ProductEditForm({
           <form onSubmit={handleSubmit}>
             {error && <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-4">{error}</div>}
 
-            <label className="block text-xs font-semibold text-slate-500 mb-1.5">Description</label>
+            <label className="block text-xs font-semibold text-slate-500 mb-1.5">{t('forms.productEdit.description')}</label>
             <input value={name} onChange={(e) => setName(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-3" />
 
-            <label className="block text-xs font-semibold text-slate-500 mb-1.5">Domaine</label>
+            <label className="block text-xs font-semibold text-slate-500 mb-1.5">{t('forms.productEdit.domain')}</label>
             <select value={domain} onChange={(e) => setDomain(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-3">
               {DOMAINS.map((d) => <option key={d} value={d}>{d}</option>)}
             </select>
 
-            <label className="block text-xs font-semibold text-slate-500 mb-1.5">Groupe matériel</label>
+            <label className="block text-xs font-semibold text-slate-500 mb-1.5">{t('forms.productEdit.materialGroup')}</label>
             <input value={materialGroup} onChange={(e) => setMaterialGroup(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-3" />
 
             <label className="flex items-center gap-1.5 text-xs text-slate-500 mb-5">
               <input type="checkbox" checked={isSerialized} onChange={(e) => setIsSerialized(e.target.checked)} />
-              Matériel sérialisé (n'affecte pas les unités déjà en stock)
+              {t('forms.productEdit.serializedNote')}
             </label>
 
             <div className="flex justify-end gap-2">
-              <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-lg">Annuler</button>
+              <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-lg">{t('common.cancel')}</button>
               <button type="submit" disabled={submitting} className="px-4 py-2 text-sm font-semibold text-white bg-[#124191] rounded-lg hover:bg-[#0d3373] disabled:opacity-60">
-                {submitting ? 'Enregistrement…' : 'Enregistrer'}
+                {submitting ? t('forms.productEdit.saving') : t('common.save')}
               </button>
             </div>
           </form>

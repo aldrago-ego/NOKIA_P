@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import * as XLSX from 'xlsx';
 import { apiFetch } from '../apiFetch';
 import { API_BASE } from '../config';
@@ -16,6 +17,7 @@ export default function SmrImportForm({
   onClose: () => void;
   onImported: () => void;
 }) {
+  const { t } = useTranslation();
   const [subcontractorId, setSubcontractorId] = useState<number | null>(null);
   const [clientId, setClientId] = useState<number | null>(null);
   const [smrNumber, setSmrNumber] = useState('');
@@ -51,31 +53,62 @@ export default function SmrImportForm({
   const warehouseId = warehouses?.[0]?.id ?? null;
 
   // Déplie la matrice pivot (sites en colonnes, matériel en lignes) en lignes plates.
+  //
+  // Deux mises en page rencontrées dans les fichiers sous-traitants — les noms de site
+  // (ex: "WAHALA-LAHE", "ATAKPAME-KAMINA"…) ne sont PAS forcément sur la même ligne que
+  // "Code" :
+  //   Mise en page A : Code | Items | Site1 | Site2 | ...   (ligne "Code")
+  //                     —    | —     | urban | suburb | ...  (ligne suivante = types)
+  //   Mise en page B : —    | —     | Site1 | Site2 | ...   (ligne AU-DESSUS de "Code")
+  //                     Code | Items | urban | suburb | ...  (ligne "Code" = types)
+  // Confondre les deux fait passer "urban"/"suburb" pour un nom de site — les déploiements
+  // de sites différents avec le même type se retrouvent alors fusionnés à tort.
   function parsePivotSheet(rows: any[][]): { siteName: string; siteType: string; partNumber: string; description: string; quantity: number }[] {
   // Cherche dynamiquement la ligne contenant "Code" — fonctionne qu'il y ait ou non
   // une ligne de titre au-dessus (ex: "ZEMTIC" fusionné avant les en-têtes réels).
-  const headerRowIdx = rows.findIndex((row) =>
+  const codeRowIdx = rows.findIndex((row) =>
     row.some((c) => typeof c === 'string' && /^code$/i.test(c.trim()))
   );
-  if (headerRowIdx === -1) return [];
+  if (codeRowIdx === -1) return [];
 
-  const headerRow = rows[headerRowIdx];      // Code | Items | Site1 | Site2 | ... | TOTAL
-  const typeRow = rows[headerRowIdx + 1] ?? []; // (vide) | (vide) | urban | suburb | ... | (vide)
-
-  const codeColIdx = headerRow.findIndex((c) => typeof c === 'string' && /^code$/i.test(c.trim()));
-  const totalColIdx = headerRow.findIndex((c) => typeof c === 'string' && /^total$/i.test(c.trim()));
+  const codeRow = rows[codeRowIdx];
+  const codeColIdx = codeRow.findIndex((c) => typeof c === 'string' && /^code$/i.test(c.trim()));
+  const totalColIdx = codeRow.findIndex((c) => typeof c === 'string' && /^total$/i.test(c.trim()));
 
   if (codeColIdx === -1) return [];
 
   const siteColStart = codeColIdx + 2; // après Code + Items
-  const siteColEnd = totalColIdx !== -1 ? totalColIdx : headerRow.length;
+  const siteColEnd = totalColIdx !== -1 ? totalColIdx : codeRow.length;
 
-  // Vérifie si la ligne suivante contient vraiment des types de site (urban/suburb/rur-high),
-  // sinon les données commencent juste après l'en-tête, sans ligne de sous-type.
-  const hasTypeRow = typeRow.slice(siteColStart, siteColEnd).some(
-    (c) => typeof c === 'string' && /^(urban|suburb|rur-high)$/i.test(c.trim())
-  );
-  const dataStart = headerRowIdx + (hasTypeRow ? 2 : 1);
+  const isTypeRow = (row: any[]) =>
+    row.slice(siteColStart, siteColEnd).some(
+      (c) => typeof c === 'string' && /^(urban|suburb|rur-high)$/i.test(c.trim())
+    );
+
+  const rowBelow = rows[codeRowIdx + 1] ?? [];
+  const rowAbove = rows[codeRowIdx - 1] ?? [];
+
+  let siteNameRow: any[];
+  let siteTypeRow: any[] | null;
+  let dataStart: number;
+
+  if (isTypeRow(codeRow)) {
+    // Mise en page B — les types sont sur la ligne "Code" elle-même, les noms de site
+    // sont juste au-dessus.
+    siteTypeRow = codeRow;
+    siteNameRow = rowAbove;
+    dataStart = codeRowIdx + 1;
+  } else if (isTypeRow(rowBelow)) {
+    // Mise en page A — les noms de site sont sur la ligne "Code", les types en dessous.
+    siteTypeRow = rowBelow;
+    siteNameRow = codeRow;
+    dataStart = codeRowIdx + 2;
+  } else {
+    // Pas de ligne de types du tout — les noms de site sont sur la ligne "Code".
+    siteTypeRow = null;
+    siteNameRow = codeRow;
+    dataStart = codeRowIdx + 1;
+  }
 
   const out: { siteName: string; siteType: string; partNumber: string; description: string; quantity: number }[] = [];
 
@@ -88,8 +121,8 @@ export default function SmrImportForm({
     for (let c = siteColStart; c < siteColEnd; c++) {
       const qty = parseInt(row[c]) || 0;
       if (qty <= 0) continue;
-      const siteName = headerRow[c];
-      const siteType = hasTypeRow ? typeRow[c] : '';
+      const siteName = siteNameRow[c];
+      const siteType = siteTypeRow ? siteTypeRow[c] : '';
       if (!siteName) continue;
 
       out.push({
@@ -106,7 +139,7 @@ export default function SmrImportForm({
 
   async function handleImport() {
     if (!file || subcontractorId == null || clientId == null || warehouseId == null || !smrNumber.trim()) {
-      setError('Tous les champs sont requis.');
+      setError(t('forms.smrImport.allFieldsRequired'));
       return;
     }
     setBusy(true);
@@ -122,7 +155,7 @@ export default function SmrImportForm({
 
         const lines = parsePivotSheet(rows);
         if (lines.length === 0) {
-          setError('Aucune ligne exploitable détectée dans ce fichier.');
+          setError(t('forms.smrImport.noUsableRows'));
           setBusy(false);
           return;
         }
@@ -141,7 +174,7 @@ export default function SmrImportForm({
         if (!res.ok) throw new Error(await res.text());
         setResult(await res.json());
       } catch (err: any) {
-        setError(err.message || "Échec de l'import.");
+        setError(err.message || t('forms.smrImport.importFailed'));
       } finally {
         setBusy(false);
       }
@@ -153,21 +186,21 @@ export default function SmrImportForm({
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4 text-black" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="bg-white rounded-xl w-full max-w-md p-6 shadow-2xl">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-base font-bold text-[#0F172A]">Importer une SMR (par sous-traitant)</h3>
+          <h3 className="text-base font-bold text-[#0F172A]">{t('forms.smrImport.title')}</h3>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600">✕</button>
         </div>
 
         {result ? (
           <div>
             <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 text-black rounded-lg px-3 py-2.5 mb-4">
-              {result.created} ligne(s) importée(s){result.skippedSites > 0 ? `, ${result.skippedSites} ignorée(s) (référence inconnue)` : ''}.
+              {t('forms.smrImport.importedLines', { count: result.created })}{result.skippedSites > 0 ? t('forms.smrImport.skippedLines', { count: result.skippedSites }) : ''}.
             </div>
             <p className="text-xs text-black mb-4">
-              La SMR est en attente — approuvez-la depuis la liste pour déduire le stock.
+              {t('forms.smrImport.pendingNotice')}
             </p>
             <div className="flex justify-end">
               <button onClick={onImported} className="px-4 py-2 text-sm font-semibold text-white bg-[#124191] rounded-lg hover:bg-[#0d3373]">
-                Terminé
+                {t('forms.smrImport.done')}
               </button>
             </div>
           </div>
@@ -176,35 +209,35 @@ export default function SmrImportForm({
             {error && <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-4">{error}</div>}
             {(subcontractorsError || clientsError || warehousesError) && (
               <div className="flex items-center justify-between gap-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
-                <span>Certaines listes n'ont pas pu être chargées.</span>
+                <span>{t('forms.smrImport.listsLoadFailed')}</span>
                 <button
                   type="button"
                   onClick={() => { retrySubcontractors(); retryClients(); retryWarehouses(); }}
                   className="font-semibold underline flex-shrink-0"
                 >
-                  Réessayer
+                  {t('common.retry')}
                 </button>
               </div>
             )}
 
-            <input value={smrNumber} onChange={(e) => setSmrNumber(e.target.value)} placeholder="N° SMR" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-3 text-black" />
+            <input value={smrNumber} onChange={(e) => setSmrNumber(e.target.value)} placeholder={t('forms.smrImport.smrNumberPlaceholder')} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-3 text-black" />
 
             <select value={subcontractorId ?? ''} onChange={(e) => setSubcontractorId(parseInt(e.target.value))} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-3 text-black">
-              <option value="">Sous-traitant…</option>
+              <option value="">{t('forms.smrImport.subcontractorPlaceholder')}</option>
               {subcontractors?.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
 
             <select value={clientId ?? ''} onChange={(e) => setClientId(parseInt(e.target.value))} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-3">
-              <option value="">Client…</option>
+              <option value="">{t('forms.smrImport.clientPlaceholder')}</option>
               {clients?.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
 
             <input type="file" accept=".xlsx,.xls" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 mb-5" />
 
             <div className="flex justify-end gap-2">
-              <button onClick={onClose} className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-lg">Annuler</button>
+              <button onClick={onClose} className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-lg">{t('common.cancel')}</button>
               <button onClick={handleImport} disabled={busy} className="px-4 py-2 text-sm font-semibold text-white bg-[#124191] rounded-lg hover:bg-[#0d3373] disabled:opacity-60">
-                {busy ? 'Import…' : 'Importer'}
+                {busy ? t('forms.smrImport.importing') : t('forms.smrImport.submit')}
               </button>
             </div>
           </>

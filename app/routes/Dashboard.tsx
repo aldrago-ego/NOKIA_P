@@ -8,8 +8,10 @@ import { apiFetch } from "../apiFetch";
 import SubcontractorDeploymentPanel from "./SubcontractorDeploymentPanel";
 import DeploymentMatrixPanel from "./DeploymentMatrixPanel";
 import StockSufficiencyPanel from "./StockSufficiencyPanel";
-import { useFetchState } from "../useFetchState";
+import { useFetchState, checkAccess } from "../useFetchState";
 import ErrorState from "../Component/ErrorState";
+import { useAuth } from "./authContext";
+import { useTranslation } from "react-i18next";
 
 const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:5000/api";
 
@@ -59,24 +61,24 @@ type CardKey = "shipment" | "inventory" | "smrs" | "faulty";
 
 const CARD_CONFIG: {
   key: CardKey;
-  label: string;
+  labelKey: string;
   badge: string;
   badgeBg: string;
 }[] = [
   {
     key: "shipment",
-    label: "HW Shipment",
+    labelKey: "dashboard.kpi.hwShipment",
     badge: "S",
     badgeBg: "bg-[#124191]",
   },
   {
     key: "inventory",
-    label: "Real-Time Inventory",
+    labelKey: "dashboard.kpi.realTimeInventory",
     badge: "R",
     badgeBg: "bg-emerald-600",
   },
-  { key: "smrs", label: "SMRs", badge: "S", badgeBg: "bg-amber-500" },
-  { key: "faulty", label: "Faulty HW RMA", badge: "A", badgeBg: "bg-red-600" },
+  { key: "smrs", labelKey: "dashboard.kpi.smrs", badge: "S", badgeBg: "bg-amber-500" },
+  { key: "faulty", labelKey: "dashboard.kpi.faultyHwRma", badge: "A", badgeBg: "bg-red-600" },
 ];
 
 const ACTIVITY_ICON: Record<string, { icon: string; color: string }> = {
@@ -87,6 +89,7 @@ const ACTIVITY_ICON: Record<string, { icon: string; color: string }> = {
 };
 
 export default function Dashboard() {
+  const { t } = useTranslation();
   // ---------- Projets ----------
   const {
     projects,
@@ -95,6 +98,7 @@ export default function Dashboard() {
     addProject,
     selectedProject,
   } = useProject();
+  const { isElevated } = useAuth();
   const [projectDropdownOpen, setProjectDropdownOpen] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -105,6 +109,7 @@ export default function Dashboard() {
   >(new Set());
 
   const [openCard, setOpenCard] = useState<CardKey | null>(null);
+  const [activitiesCollapsed, setActivitiesCollapsed] = useState(false);
 
   // ---------- Real-Time Inventory detail ----------
   const [domainSummary, setDomainSummary] = useState<DomainSummary[] | null>(
@@ -123,13 +128,16 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [smrPreview, setSmrPreview] = useState<any[] | null>(null);
 
+  // Toujours réinterroger le serveur — pas de cache "déjà chargé, on ne bouge plus" :
+  // le statut d'une SMR (approuvée, approuvée partiellement, complétée…) peut avoir
+  // changé depuis la dernière ouverture de ce panneau, il faut le refléter à chaque fois.
   const loadSmrPreview = useCallback(() => {
-    if (selectedProjectId == null || smrPreview) return;
+    if (selectedProjectId == null) return;
     apiFetch(`${API_BASE}/SmrRequests?projectId=${selectedProjectId}`)
       .then((res) => res.json())
       .then((data) => setSmrPreview(data.slice(0, 4)))
       .catch(() => setSmrPreview([]));
-  }, [selectedProjectId, smrPreview]);
+  }, [selectedProjectId]);
 
   // Ferme le dropdown si on clique en dehors
   useEffect(() => {
@@ -221,14 +229,17 @@ export default function Dashboard() {
     retry: retryActivities,
   } = useFetchState<ActivityLog[] | null>(
     async (signal) => {
-      if (selectedProjectId == null) return null;
+      // Réservé Admin/Supervisor côté backend (ActivityLogsController.GetRecent) — un
+      // visiteur ne doit jamais voir cette section basculer en erreur de chargement,
+      // donc on ne tente même pas l'appel : elle reste simplement vide pour lui.
+      if (!isElevated || selectedProjectId == null) return null;
       const res = await apiFetch(
         `${API_BASE}/ActivityLogs?projectId=${selectedProjectId}&take=10`,
         { signal },
-      );
+      ).then(checkAccess);
       return res.json();
     },
-    [selectedProjectId],
+    [selectedProjectId, isElevated],
   );
 
   // Réinitialise les panneaux ouverts en changeant de projet — les données affichées
@@ -293,8 +304,8 @@ export default function Dashboard() {
       {/* ---------- HEADER : titre + sélecteur de projet ---------- */}
      <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-3">
   <div>
-    <h1 className="text-lg md:text-xl font-bold text-[#0F172A] mb-1">Dashboard</h1>
-    <p className="text-xs md:text-sm text-slate-500">Vue d'ensemble du stock — Entrepôt Lomé</p>
+    <h1 className="text-lg md:text-xl font-bold text-[#0F172A] mb-1">{t("dashboard.title")}</h1>
+    <p className="text-xs md:text-sm text-slate-500">{t("dashboard.subtitle")}</p>
   </div>
 
   <div className="flex items-center gap-2 flex-wrap" ref={dropdownRef}>
@@ -315,7 +326,7 @@ export default function Dashboard() {
                     {selectedProject.name}
                   </>
                 ) : (
-                  "Aucun projet"
+                  t("dashboard.noProject")
                 )}
               </span>
               <svg
@@ -383,7 +394,7 @@ export default function Dashboard() {
                 strokeLinecap="round"
               />
             </svg>
-            Nouveau projet
+            {t("dashboard.newProject")}
           </button>
         </div>
       </div>
@@ -402,8 +413,7 @@ export default function Dashboard() {
               strokeWidth="1.8"
             />
           </svg>
-          Projet antérieur au suivi numérique — les SMR et le matériel
-          défectueux ne sont pas disponibles pour cette période.
+          {t("dashboard.archivedBanner")}
         </div>
       )}
 
@@ -434,7 +444,7 @@ export default function Dashboard() {
                   {cfg.badge}
                 </span>
                 <span className="text-sm font-semibold text-slate-700">
-                  {cfg.label}
+                  {t(cfg.labelKey)}
                 </span>
               </div>
 
@@ -445,16 +455,16 @@ export default function Dashboard() {
                       e.stopPropagation();
                       retryStats();
                     }}
-                    title="Réessayer"
+                    title={t("common.retry")}
                     className="text-sm text-red-500 underline decoration-dotted cursor-pointer hover:text-red-600"
                   >
-                    Erreur de chargement — réessayer
+                    {t("dashboard.errorLoading")}
                   </span>
                 ) : statsLoading || !stats ? (
                   <span className="inline-block h-7 w-16 bg-slate-200 rounded animate-pulse" />
                 ) : unavailable ? (
                   <span className="text-sm text-slate-400 italic">
-                    Non disponible
+                    {t("dashboard.unavailable")}
                   </span>
                 ) : cfg.key === "inventory" ? (
                   <>
@@ -636,7 +646,10 @@ export default function Dashboard() {
         <div className="bg-white rounded-xl border border-slate-200 mb-6 overflow-hidden animate-[slideDown_.25s_ease]">
           <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 bg-slate-50">
             <h3 className="text-sm font-semibold text-[#0F172A]">
-              {CARD_CONFIG.find((c) => c.key === openCard)?.label}
+              {(() => {
+                const key = CARD_CONFIG.find((c) => c.key === openCard)?.labelKey;
+                return key ? t(key) : null;
+              })()}
             </h3>
             <button
               onClick={() => setOpenCard(null)}
@@ -671,14 +684,18 @@ export default function Dashboard() {
                         <span
                           className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
                             s.status === "Approved"
-                              ? "bg-emerald-50 text-emerald-700"
+                              ? s.hasShortfall
+                                ? "bg-amber-50 text-amber-700"
+                                : "bg-emerald-50 text-emerald-700"
                               : s.status === "Rejected"
                                 ? "bg-red-50 text-red-700"
                                 : "bg-amber-50 text-amber-700"
                           }`}
                         >
                           {s.status === "Approved"
-                            ? "Approuvée"
+                            ? s.hasShortfall
+                              ? "Approuvée (partielle)"
+                              : "Approuvée"
                             : s.status === "Rejected"
                               ? "Rejetée"
                               : "En attente"}
@@ -704,12 +721,29 @@ export default function Dashboard() {
 
       {/* ---------- TABLEAU : ACTIVITÉS RÉCENTES ---------- */}
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden animate-[fadeIn_.4s_ease]">
-        <div className="px-5 py-3 border-b border-slate-200 bg-slate-50">
+        <button
+          onClick={() => setActivitiesCollapsed((c) => !c)}
+          className="w-full flex items-center justify-between px-5 py-3 border-b border-slate-200 bg-slate-50 text-left hover:bg-slate-100 transition-colors"
+        >
           <h3 className="text-sm font-semibold text-[#0F172A]">
-            Activités récentes
+            {t("dashboard.recentActivities")}
           </h3>
-        </div>
-        <div className="overflow-x-auto">
+          <svg
+            className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${activitiesCollapsed ? "" : "rotate-180"}`}
+            viewBox="0 0 24 24"
+            fill="none"
+          >
+            <path
+              d="M6 9l6 6 6-6"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </button>
+        {!activitiesCollapsed && (
+        <div className="overflow-x-auto animate-[slideDown_.2s_ease]">
           <table className="w-full text-sm min-w-[560px]">
             <thead>
               <tr className="text-xs text-slate-400 uppercase tracking-wide border-b border-slate-100">
@@ -737,13 +771,22 @@ export default function Dashboard() {
                     />
                   </td>
                 </tr>
+              ) : !isElevated ? (
+                <tr>
+                  <td
+                    colSpan={4}
+                    className="px-5 py-6 text-center text-slate-400 italic"
+                  >
+                    {t("dashboard.restrictedSection")}
+                  </td>
+                </tr>
               ) : !activities || activities.length === 0 ? (
                 <tr>
                   <td
                     colSpan={4}
                     className="px-5 py-6 text-center text-slate-400"
                   >
-                    Aucune activité enregistrée pour ce projet.
+                    {t("dashboard.noRecentActivity")}
                   </td>
                 </tr>
               ) : (
@@ -779,10 +822,11 @@ export default function Dashboard() {
           </table>
           <div className="px-5 py-3 border-t border-slate-100 bg-slate-50/50 text-right ">
             <a href="/history" className="text-xs font-semibold text-[#124191] hover:underline">
-              Voir tout l'historique →
+              {t("dashboard.viewFullHistory")}
             </a>
           </div>
         </div>
+        )}
       </div>
       {selectedProjectId != null && (
   <>
@@ -814,6 +858,7 @@ function CreateProjectModal({
   onClose: () => void;
   onCreated: (p: Project) => void;
 }) {
+  const { t } = useTranslation();
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [startDate, setStartDate] = useState("");
@@ -824,7 +869,7 @@ function CreateProjectModal({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim() || !code.trim() || !startDate) {
-      setError("Nom, code et date de début sont requis.");
+      setError(t("dashboard.createProject.requiredFields"));
       return;
     }
     setSubmitting(true);
@@ -844,7 +889,7 @@ function CreateProjectModal({
       const created: Project = await res.json();
       onCreated(created);
     } catch {
-      setError("Impossible de créer le projet. Réessayez.");
+      setError(t("dashboard.createProject.createFailed"));
     } finally {
       setSubmitting(false);
     }
@@ -857,7 +902,7 @@ function CreateProjectModal({
     >
       <div className="bg-white rounded-xl w-full max-w-md p-6 shadow-2xl">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-base font-bold text-[#0F172A]">Nouveau projet</h3>
+          <h3 className="text-base font-bold text-[#0F172A]">{t("dashboard.newProject")}</h3>
           <button
             onClick={onClose}
             className="text-slate-400 hover:text-slate-600"
@@ -875,24 +920,24 @@ function CreateProjectModal({
 
           <div>
             <label className="block text-xs font-semibold text-slate-500 mb-1.5">
-              Nom du projet
+              {t("dashboard.createProject.name")}
             </label>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="ex : New Horizon Phase 2"
+              placeholder={t("dashboard.createProject.namePlaceholder")}
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#124191]/30 focus:border-[#124191]"
             />
           </div>
 
           <div>
             <label className="block text-xs font-semibold text-slate-500 mb-1.5">
-              Code
+              {t("dashboard.createProject.code")}
             </label>
             <input
               value={code}
               onChange={(e) => setCode(e.target.value)}
-              placeholder="ex : P4"
+              placeholder={t("dashboard.createProject.codePlaceholder")}
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#124191]/30 focus:border-[#124191]"
             />
           </div>
@@ -900,7 +945,7 @@ function CreateProjectModal({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-slate-500 mb-1.5">
-                Date de début
+                {t("dashboard.createProject.startDate")}
               </label>
               <input
                 type="date"
@@ -911,8 +956,8 @@ function CreateProjectModal({
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-500 mb-1.5">
-                Date de fin{" "}
-                <span className="text-slate-400 font-normal">(optionnel)</span>
+                {t("dashboard.createProject.endDate")}{" "}
+                <span className="text-slate-400 font-normal">{t("dashboard.createProject.optional")}</span>
               </label>
               <input
                 type="date"
@@ -929,14 +974,14 @@ function CreateProjectModal({
               onClick={onClose}
               className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
             >
-              Annuler
+              {t("common.cancel")}
             </button>
             <button
               type="submit"
               disabled={submitting}
               className="px-4 py-2 text-sm font-semibold text-white bg-[#124191] rounded-lg hover:bg-[#0d3373] transition-colors disabled:opacity-60"
             >
-              {submitting ? "Création…" : "Créer le projet"}
+              {submitting ? t("dashboard.createProject.creating") : t("dashboard.createProject.create")}
             </button>
           </div>
         </form>

@@ -4,6 +4,8 @@ import RmaCreateForm from './RmaCreateForm';
 import { apiFetch } from '../apiFetch';
 import { useFetchState } from '../useFetchState';
 import ErrorState from '../Component/ErrorState';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:5000/api';
 
@@ -20,13 +22,15 @@ interface Rma {
   items: RmaItem[];
 }
 
-function statusPill(status: string) {
-  if (status === 'Shipped') return <span className="text-xs font-semibold text-[#124191] bg-[#EAF1FC] px-2 py-0.5 rounded-full">Expédiée</span>;
-  if (status === 'Closed') return <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">Clôturée</span>;
-  return <span className="text-xs font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">En attente</span>;
+// t est passé en paramètre — appelé dans une boucle JSX, un hook n'y serait pas légal.
+function statusPill(status: string, t: TFunction) {
+  if (status === 'Shipped') return <span className="text-xs font-semibold text-[#124191] bg-[#EAF1FC] px-2 py-0.5 rounded-full">{t('rma.status.shipped')}</span>;
+  if (status === 'Closed') return <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">{t('rma.status.closed')}</span>;
+  return <span className="text-xs font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">{t('rma.status.pending')}</span>;
 }
 
 export default function RmaDetailPanel({ projectId, limit }: { projectId: number; limit?: number }) {
+  const { t } = useTranslation();
   const { isAdmin } = useAuth();
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [showCreate, setShowCreate] = useState(false);
@@ -54,7 +58,7 @@ export default function RmaDetailPanel({ projectId, limit }: { projectId: number
             onClick={() => setShowCreate(true)}
             className="text-xs font-semibold text-white bg-[#124191] rounded-lg px-3 py-1.5 hover:bg-[#0d3373]"
           >
-            + Nouvelle RMA
+            {t('rma.newRma')}
           </button>
         </div>
       )}
@@ -64,7 +68,7 @@ export default function RmaDetailPanel({ projectId, limit }: { projectId: number
       ) : rmasLoading || !displayed ? (
         <div className="space-y-2 p-1">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-11 bg-slate-100 rounded animate-pulse" />)}</div>
       ) : displayed.length === 0 ? (
-        <p className="text-sm text-slate-400 text-center py-6">Aucune RMA pour ce projet.</p>
+        <p className="text-sm text-slate-400 text-center py-6">{t('rma.noRmaForProject')}</p>
       ) : (
         <div className="space-y-2">
           {displayed.map((r) => (
@@ -74,8 +78,8 @@ export default function RmaDetailPanel({ projectId, limit }: { projectId: number
               className="w-full flex items-center justify-between px-4 py-2.5 border border-slate-100 rounded-lg text-sm hover:bg-[#EAF1FC] transition-colors text-left"
             >
               <span className="font-mono text-[#124191] font-semibold">{r.rmaNumber}</span>
-              <span className="text-slate-500">{r.items.length} référence(s)</span>
-              {statusPill(r.status)}
+              <span className="text-slate-500">{t('rma.referenceCount', { count: r.items.length })}</span>
+              {statusPill(r.status, t)}
             </button>
           ))}
         </div>
@@ -83,7 +87,7 @@ export default function RmaDetailPanel({ projectId, limit }: { projectId: number
 
       {limit && rmas && rmas.length > limit && (
         <a href="/rma" className="block text-xs font-semibold text-[#124191] hover:underline mt-3">
-          Voir toutes les RMA →
+          {t('rma.viewAll')}
         </a>
       )}
 
@@ -98,6 +102,7 @@ export default function RmaDetailPanel({ projectId, limit }: { projectId: number
 }
 
 function RmaModal({ rmaId, onClose, onDone }: { rmaId: number; onClose: () => void; onDone: () => void }) {
+  const { t } = useTranslation();
   const { isAdmin } = useAuth();
   // erreur de mutation (expédition/clôture/annulation) — distincte de l'erreur de chargement
   const [error, setError] = useState<string | null>(null);
@@ -128,7 +133,7 @@ function RmaModal({ rmaId, onClose, onDone }: { rmaId: number; onClose: () => vo
       if (!res.ok) throw new Error(await res.text());
       onDone();
     } catch (err: any) {
-      setError(err.message || "Échec de l'expédition.");
+      setError(err.message || t('rma.shipFailed'));
       setBusy(false);
     }
   }
@@ -145,7 +150,7 @@ function RmaModal({ rmaId, onClose, onDone }: { rmaId: number; onClose: () => vo
       if (!res.ok) throw new Error(await res.text());
       onDone();
     } catch (err: any) {
-      setError(err.message || 'Échec de la clôture.');
+      setError(err.message || t('rma.closeFailed'));
       setBusy(false);
     }
   }
@@ -157,7 +162,7 @@ function RmaModal({ rmaId, onClose, onDone }: { rmaId: number; onClose: () => vo
       if (!res.ok) throw new Error(await res.text());
       onDone();
     } catch (err: any) {
-      setError(err.message || "Échec de l'annulation.");
+      setError(err.message || t('rma.cancelFailed'));
       setBusy(false);
     }
   }
@@ -177,14 +182,14 @@ function RmaModal({ rmaId, onClose, onDone }: { rmaId: number; onClose: () => vo
             <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-6 bg-slate-100 rounded animate-pulse" />)}</div>
           ) : (
             <>
-              <div className="mb-4">{statusPill(rma.status)}</div>
+              <div className="mb-4">{statusPill(rma.status, t)}</div>
 
               <table className="w-full text-sm mb-4 text-black">
                 <thead>
                   <tr className="text-xs text-slate-400 border-b border-slate-100">
-                    <th className="text-left font-medium py-2">Code</th>
-                    <th className="text-left font-medium py-2">Description</th>
-                    <th className="text-right font-medium py-2">Qté retournée</th>
+                    <th className="text-left font-medium py-2">{t('common.code')}</th>
+                    <th className="text-left font-medium py-2">{t('common.description')}</th>
+                    <th className="text-right font-medium py-2">{t('rma.returnedQty')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -198,19 +203,19 @@ function RmaModal({ rmaId, onClose, onDone }: { rmaId: number; onClose: () => vo
                 </tbody>
               </table>
 
-              {rma.notes && <p className="text-xs text-slate-500 mb-3">Note : {rma.notes}</p>}
-              {rma.courierReference && <p className="text-xs text-slate-500 mb-3">Réf. transporteur : <span className="font-mono">{rma.courierReference}</span></p>}
+              {rma.notes && <p className="text-xs text-slate-500 mb-3">{t('rma.noteLabel')} {rma.notes}</p>}
+              {rma.courierReference && <p className="text-xs text-slate-500 mb-3">{t('rma.courierRefLabel')} <span className="font-mono">{rma.courierReference}</span></p>}
 
               {error && <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">{error}</div>}
 
               {isAdmin && rma.status === 'Pending' && (
                 <>
-                  <input value={actor} onChange={(e) => setActor(e.target.value)} placeholder="Votre nom" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-2" />
-                  <input value={courierRef} onChange={(e) => setCourierRef(e.target.value)} placeholder="Référence transporteur (optionnel)" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-3" />
+                  <input value={actor} onChange={(e) => setActor(e.target.value)} placeholder={t('rma.yourName')} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-2" />
+                  <input value={courierRef} onChange={(e) => setCourierRef(e.target.value)} placeholder={t('rma.courierRefPlaceholder')} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-3" />
                   <div className="flex justify-end gap-2">
-                    <button onClick={handleCancel} disabled={busy} className="px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 rounded-lg">Annuler la RMA</button>
+                    <button onClick={handleCancel} disabled={busy} className="px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 rounded-lg">{t('rma.cancelRma')}</button>
                     <button onClick={handleShip} disabled={busy} className="px-4 py-2 text-sm font-semibold text-white bg-[#124191] rounded-lg hover:bg-[#0d3373] disabled:opacity-60">
-                      {busy ? 'Traitement…' : 'Marquer comme expédiée'}
+                      {busy ? t('rma.processing') : t('rma.markShipped')}
                     </button>
                   </div>
                 </>
@@ -219,7 +224,7 @@ function RmaModal({ rmaId, onClose, onDone }: { rmaId: number; onClose: () => vo
               {isAdmin && rma.status === 'Shipped' && (
                 <div className="flex justify-end">
                   <button onClick={handleClose} disabled={busy} className="px-4 py-2 text-sm font-semibold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-60">
-                    {busy ? 'Traitement…' : 'Clôturer la RMA'}
+                    {busy ? t('rma.processing') : t('rma.closeRma')}
                   </button>
                 </div>
               )}

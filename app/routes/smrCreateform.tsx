@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useProject } from "./project";
 import {apiFetch} from "../apiFetch";
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:5000/api';
@@ -44,6 +45,7 @@ export default function SmrCreateForm({
   onClose: () => void;
   onCreated: () => void;
 }) {
+  const { t } = useTranslation();
   const { selectedProjectId } = useProject();
   const [showSiteForm, setShowSiteForm] = useState(false);
 
@@ -159,13 +161,13 @@ export default function SmrCreateForm({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!smrNumber.trim()) return setError("Le numéro de SMR est requis.");
-    if (clientId == null) return setError("Sélectionnez un client.");
-    if (selectedSiteId == null) return setError('Sélectionnez un site.');
+    if (!smrNumber.trim()) return setError(t('forms.smrCreate.smrNumberRequired'));
+    if (clientId == null) return setError(t('forms.smrCreate.selectClient'));
+    if (selectedSiteId == null) return setError(t('forms.smrCreate.selectSite'));
     if (lines.length === 0)
-      return setError("Ajoutez au moins une ligne de matériel.");
+      return setError(t('forms.smrCreate.addAtLeastOneLine'));
     if (warehouse == null || selectedProjectId == null)
-      return setError("Contexte projet/entrepôt manquant.");
+      return setError(t('forms.smrCreate.missingContext'));
 
     setSubmitting(true);
     setError(null);
@@ -185,7 +187,7 @@ export default function SmrCreateForm({
       if (!res.ok) throw new Error(await res.text());
       onCreated();
     } catch (err: any) {
-      setError(err.message || "Échec de la création.");
+      setError(err.message || t('forms.smrCreate.createFailed'));
     } finally {
       setSubmitting(false);
     }
@@ -199,7 +201,7 @@ export default function SmrCreateForm({
       <div className="bg-white rounded-xl w-full max-w-2xl max-h-[86vh] overflow-y-auto shadow-2xl">
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 sticky top-0 bg-white">
           <h3 className="text-base font-bold text-[#0F172A]">
-            Nouvelle demande SMR
+            {t('forms.smrCreate.title')}
           </h3>
           <button
             onClick={onClose}
@@ -217,13 +219,13 @@ export default function SmrCreateForm({
           )}
           {(warehousesError || clientsError || sitesError) && (
             <div className="flex items-center justify-between gap-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
-              <span>Certaines listes n'ont pas pu être chargées.</span>
+              <span>{t('forms.smrCreate.listsLoadFailed')}</span>
               <button
                 type="button"
                 onClick={() => { retryWarehouses(); retryClients(); retrySites(); }}
                 className="font-semibold underline flex-shrink-0"
               >
-                Réessayer
+                {t('common.retry')}
               </button>
             </div>
           )}
@@ -231,25 +233,25 @@ export default function SmrCreateForm({
           <div className="grid grid-cols-2 gap-3 mb-4">
             <div>
               <label className="block text-xs font-semibold text-slate-500 mb-1.5">
-                N° SMR
+                {t('forms.smrCreate.smrNumber')}
               </label>
               <input
                 value={smrNumber}
                 onChange={(e) => setSmrNumber(e.target.value)}
-                placeholder="ex : SMR-2211"
+                placeholder={t('forms.smrCreate.smrNumberPlaceholder')}
                 className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#124191]/30 focus:border-[#124191]"
               />
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-500 mb-1.5">
-                Client
+                {t('common.client')}
               </label>
               <select
                 value={clientId ?? ""}
                 onChange={(e) => setClientId(parseInt(e.target.value))}
                 className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#124191]/30"
               >
-                <option value="">Sélectionner…</option>
+                <option value="">{t('common.select')}</option>
                 {clients?.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
@@ -262,13 +264,13 @@ export default function SmrCreateForm({
          
 <div className="mb-4">
   <div className="flex items-center justify-between mb-1.5">
-    <label className="block text-xs font-semibold text-slate-500">Site destinataire</label>
+    <label className="block text-xs font-semibold text-slate-500">{t('forms.smrCreate.recipientSite')}</label>
     <button
       type="button"
       onClick={() => setShowSiteForm(true)}
       className="text-xs font-semibold text-[#124191] hover:underline"
     >
-      + Nouveau site
+      {t('forms.smrCreate.newSite')}
     </button>
   </div>
   <select
@@ -276,7 +278,7 @@ export default function SmrCreateForm({
     onChange={(e) => setSelectedSiteId(parseInt(e.target.value))}
     className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
   >
-    <option value="">Sélectionner…</option>
+    <option value="">{t('common.select')}</option>
     {sites?.map((s) => (
       <option key={s.id} value={s.id}>{s.siteName}</option>
     ))}
@@ -285,12 +287,12 @@ export default function SmrCreateForm({
 
           <div className="mb-2">
             <label className="block text-xs font-semibold text-slate-500 mb-1.5">
-              Ajouter du matériel (issu du stock disponible)
+              {t('forms.smrCreate.addMaterial')}
             </label>
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Rechercher un code ou une description…"
+              placeholder={t('forms.smrCreate.searchPlaceholder')}
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-[#124191]/30 focus:border-[#124191]"
             />
             {search.trim() !== "" && (
@@ -301,11 +303,11 @@ export default function SmrCreateForm({
                   </div>
                 ) : stockLoading || !stockLines ? (
                   <div className="p-3 text-xs text-slate-400">
-                    Chargement du stock…
+                    {t('forms.smrCreate.loadingStock')}
                   </div>
                 ) : filteredStock.length === 0 ? (
                   <div className="p-3 text-xs text-slate-400">
-                    Aucune référence disponible correspondante.
+                    {t('forms.smrCreate.noAvailableMatch')}
                   </div>
                 ) : (
                   filteredStock.slice(0, 8).map((l) => (
@@ -320,7 +322,7 @@ export default function SmrCreateForm({
                       </span>{" "}
                       <span className="text-slate-600">{l.name}</span>{" "}
                       <span className="text-xs text-emerald-600 float-right">
-                        {availableQty(l)} dispo
+                        {t('forms.smrCreate.available', { count: availableQty(l) })}
                       </span>
                     </button>
                   ))
@@ -333,10 +335,10 @@ export default function SmrCreateForm({
             <table className="w-full text-sm mb-4">
               <thead>
                 <tr className="text-xs text-slate-400 border-b border-slate-100">
-                  <th className="text-left font-medium py-2">Code</th>
-                  <th className="text-left font-medium py-2">Description</th>
-                  <th className="text-right font-medium py-2">Disponible</th>
-                  <th className="text-right font-medium py-2">Qté demandée</th>
+                  <th className="text-left font-medium py-2">{t('common.code')}</th>
+                  <th className="text-left font-medium py-2">{t('common.description')}</th>
+                  <th className="text-right font-medium py-2">{t('forms.smrCreate.availableCol')}</th>
+                  <th className="text-right font-medium py-2">{t('forms.smrCreate.requestedQty')}</th>
                   <th></th>
                 </tr>
               </thead>
@@ -389,16 +391,16 @@ export default function SmrCreateForm({
               onClick={onClose}
               className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
             >
-              Annuler
+              {t('common.cancel')}
             </button>
             <LoadingButton
               type="submit"
               disabled={submitting}
               loading={submitting}
-              loadingText="Création…"
+              loadingText={t('forms.smrCreate.creating')}
               className="px-5 py-2.5 text-sm font-semibold text-white bg-[#124191] rounded-lg hover:bg-[#0d3373] disabled:opacity-60"
             >
-              {submitting ? "Création…" : "Créer la demande SMR"}
+              {submitting ? t('forms.smrCreate.creating') : t('forms.smrCreate.submit')}
             </LoadingButton>
           </div>
         </form>

@@ -1,4 +1,5 @@
-import React from "react";
+import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { apiFetch } from "../apiFetch";
 import { useFetchState } from "../useFetchState";
 import ErrorState from "../Component/ErrorState";
@@ -18,6 +19,8 @@ export default function DeploymentMatrixPanel({
 }: {
   projectId: number;
 }) {
+  const { t } = useTranslation();
+  const [collapsed, setCollapsed] = useState(false);
   const {
     data,
     loading,
@@ -57,12 +60,29 @@ export default function DeploymentMatrixPanel({
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 overflow-hidden mb-6">
-      <div className="px-5 py-3 border-b border-slate-100 bg-slate-50">
+      <button
+        onClick={() => setCollapsed((c) => !c)}
+        className="w-full flex items-center justify-between px-5 py-3 border-b border-slate-100 bg-slate-50 text-left hover:bg-slate-100 transition-colors"
+      >
         <h3 className="text-sm font-bold text-[#0F172A]">
-          Matériel déployé par sous-traitant
+          {t('deploymentMatrix.title')}
         </h3>
-      </div>
-      <div className="overflow-x-auto">
+        <svg
+          className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${collapsed ? "" : "rotate-180"}`}
+          viewBox="0 0 24 24"
+          fill="none"
+        >
+          <path
+            d="M6 9l6 6 6-6"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </button>
+      {!collapsed && (
+      <div className="overflow-x-auto animate-[slideDown_.2s_ease]">
         <table className="w-full text-sm min-w-[600px]">
           <thead>
             <tr>
@@ -71,13 +91,13 @@ export default function DeploymentMatrixPanel({
                 colSpan={data.subcontractors.length}
                 className="text-center text-xs font-bold text-white bg-[#F2790B] px-4 py-2"
               >
-                Sous-traitants
+                {t('deploymentMatrix.subcontractors')}
               </th>
               <th className="border-b border-slate-100 px-4 py-2" />
             </tr>
             <tr className="text-xs text-white bg-[#124191]">
-              <th className="text-left font-semibold px-4 py-2">Code</th>
-              <th className="text-left font-semibold px-4 py-2">Description</th>
+              <th className="text-left font-semibold px-4 py-2">{t('common.code')}</th>
+              <th className="text-left font-semibold px-4 py-2">{t('common.description')}</th>
               {data.subcontractors.map((s) => (
                 <th
                   key={s}
@@ -86,9 +106,9 @@ export default function DeploymentMatrixPanel({
                   {s}
                 </th>
               ))}
-              <th className="text-right font-semibold px-4 py-2">Reçu</th>
+              <th className="text-right font-semibold px-4 py-2">{t('deploymentMatrix.received')}</th>
               <th className="text-right font-semibold px-4 py-2 bg-[#0d3373]">
-                Total
+                {t('common.total')}
               </th>
             </tr>
           </thead>
@@ -132,6 +152,7 @@ export default function DeploymentMatrixPanel({
           </tbody>
         </table>
       </div>
+      )}
     </div>
   );
 }

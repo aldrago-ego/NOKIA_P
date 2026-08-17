@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Links, Meta, NavLink, Outlet, Scripts, ScrollRestoration, useNavigate } from 'react-router';
+import { useTranslation } from 'react-i18next';
 import { ProjectProvider } from './project';
 import { useAuth } from './authContext';
+import LanguageSwitcher from '../Component/LanguageSwitcher';
 
 const NAV_ITEMS = [
   {
     to: '/',
-    label: 'Dashboard',
+    labelKey: 'nav.dashboard',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" className="w-[18px] h-[18px]">
         <rect x="3" y="3" width="7" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.7" />
@@ -18,7 +20,7 @@ const NAV_ITEMS = [
   },
   {
     to: '/warehouse',
-    label: 'Warehouse',
+    labelKey: 'nav.warehouse',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" className="w-[18px] h-[18px]">
         <path d="M3 9.5L12 4l9 5.5V19a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z" stroke="currentColor" strokeWidth="1.7" />
@@ -28,7 +30,7 @@ const NAV_ITEMS = [
   },
   {
     to: '/smr',
-    label: 'SMR Requests',
+    labelKey: 'nav.smrRequests',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" className="w-[18px] h-[18px]">
         <path d="M3 3h13v13H3zM16 8h4l3 4v4h-7z" stroke="currentColor" strokeWidth="1.7" />
@@ -39,7 +41,7 @@ const NAV_ITEMS = [
   },
   {
     to: '/rma',
-    label: 'Faulty HW RMA',
+    labelKey: 'nav.faultyHwRma',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" className="w-[18px] h-[18px]">
         <path d="M12 9v4m0 4h.01M10.3 3.9L2.7 17a2 2 0 001.7 3h15.2a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z" stroke="currentColor" strokeWidth="1.7" />
@@ -48,7 +50,7 @@ const NAV_ITEMS = [
   },
   {
     to: '/loans',
-    label: 'Prêts & Emprunts',
+    labelKey: 'nav.loans',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" className="w-[18px] h-[18px]">
         <path d="M8 7h12m0 0l-4-4m4 4l-4 4M16 17H4m0 0l4 4m-4-4l4-4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
@@ -57,7 +59,7 @@ const NAV_ITEMS = [
   },
   {
     to: '/traceability',
-    label: 'Traçabilité',
+    labelKey: 'nav.traceability',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" className="w-[18px] h-[18px]">
         <path d="M9 20l-5-5 5-5M4 15h16" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
@@ -66,7 +68,7 @@ const NAV_ITEMS = [
   },
   {
     to: '/clients',
-    label: 'Clients',
+    labelKey: 'nav.clients',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" className="w-[18px] h-[18px]">
         <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z" stroke="currentColor" strokeWidth="1.6" />
@@ -76,7 +78,7 @@ const NAV_ITEMS = [
   },
   {
     to: '/history',
-    label: 'Historique',
+    labelKey: 'nav.history',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" className="w-[18px] h-[18px]">
         <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.7" />
@@ -87,6 +89,7 @@ const NAV_ITEMS = [
 ];
 
 export default function AppLayout() {
+  const { t } = useTranslation();
   const { role, userName, isAdmin, logout } = useAuth();
   const navigate = useNavigate();
   const [checked, setChecked] = useState(false);
@@ -155,7 +158,7 @@ export default function AppLayout() {
                         }`}
                       />
                       <span className={isActive ? 'text-[#F2790B]' : ''}>{item.icon}</span>
-                      {item.label}
+                      {t(item.labelKey)}
                     </>
                   )}
                 </NavLink>
@@ -164,17 +167,20 @@ export default function AppLayout() {
           </div>
 
           <div className="p-4 border-t border-white/10">
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between mb-3">
               <span className="text-[11px] text-blue-300/70">{userName} ({role})</span>
               <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#F2790B] to-[#c85f00] flex items-center justify-center font-bold text-[11px] text-white shadow-sm">
                 {userName?.charAt(0).toUpperCase() ?? 'N'}
               </div>
             </div>
+            <div className="mb-3">
+              <LanguageSwitcher variant="dark" />
+            </div>
             <button
               onClick={logout}
               className="w-full text-left text-[11px] text-blue-300/60 hover:text-red-300 transition-colors"
             >
-              Déconnexion
+              {t('nav.logout')}
             </button>
           </div>
         </aside>

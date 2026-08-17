@@ -6,6 +6,7 @@ import { useProject } from "./project";
 import { useAuth } from "./authContext";
 import { useFetchState } from "../useFetchState";
 import ErrorState from "../Component/ErrorState";
+import { useTranslation } from "react-i18next";
 
 const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:5000/api";
 
@@ -49,6 +50,7 @@ export default function ShipmentDetailPanel({
 }: {
   projectId: number;
 }) {
+  const { t } = useTranslation();
   const [selectedId, setSelectedId] = useState<number | null>(null);
 
   const {
@@ -74,7 +76,7 @@ export default function ShipmentDetailPanel({
           disabled={!shipments || shipments.length === 0}
           className="text-xs font-semibold text-[#124191] hover:underline disabled:opacity-40"
         >
-          Exporter en Excel
+          {t("shipment.exportExcel")}
         </button>
       </div>
       <div className="table-wrap text-black">
@@ -91,22 +93,22 @@ export default function ShipmentDetailPanel({
           </div>
         ) : shipments.length === 0 ? (
           <p className="text-sm text-slate-400 text-center py-6">
-            Aucun shipment enregistré pour ce projet.
+            {t("shipment.noShipments")}
           </p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-black min-w-[600px]">
               <thead>
                 <tr className="text-xs text-slate-400 uppercase tracking-wide border-b border-slate-100">
-                  <th className="text-left font-medium px-4 py-2.5">#</th>
-                  <th className="text-left font-medium px-4 py-2.5">Scope</th>
+                  <th className="text-left font-medium px-4 py-2.5">{t("shipment.table.number")}</th>
+                  <th className="text-left font-medium px-4 py-2.5">{t("shipment.table.scope")}</th>
                   <th className="text-left font-medium px-4 py-2.5">
-                    Location
+                    {t("shipment.table.location")}
                   </th>
-                  <th className="text-left font-medium px-4 py-2.5">MOT</th>
-                  <th className="text-left font-medium px-4 py-2.5">Arrivée</th>
-                  <th className="text-left font-medium px-4 py-2.5">Invoice</th>
-                  <th className="text-left font-medium px-4 py-2.5">Statut</th>
+                  <th className="text-left font-medium px-4 py-2.5">{t("shipment.table.mot")}</th>
+                  <th className="text-left font-medium px-4 py-2.5">{t("shipment.table.arrival")}</th>
+                  <th className="text-left font-medium px-4 py-2.5">{t("shipment.table.invoice")}</th>
+                  <th className="text-left font-medium px-4 py-2.5">{t("common.status")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -135,11 +137,11 @@ export default function ShipmentDetailPanel({
                     <td className="px-4 py-2.5">
                       {s.status === "Delivered" ? (
                         <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
-                          Livré
+                          {t("shipment.delivered")}
                         </span>
                       ) : (
                         <span className="text-xs font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">
-                          En attente
+                          {t("shipment.pending")}
                         </span>
                       )}
                     </td>
@@ -206,6 +208,7 @@ export function ShipmentModal({
   onClose: () => void;
   onConfirmed: () => void;
 }) {
+  const { t } = useTranslation();
   const { isElevated } = useAuth();
   const {
     data: shipment,
@@ -263,13 +266,13 @@ export function ShipmentModal({
           ) : (
             <>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 text-sm">
-                <Field label="Mode de transport" value={shipment.mot} />
+                <Field label={t("shipment.transportMode")} value={shipment.mot} />
                 <Field
-                  label="Nb. conteneurs"
+                  label={t("shipment.containersCount")}
                   value={shipment.containersCount?.toString() ?? "—"}
                 />
                 <Field
-                  label="Date de départ"
+                  label={t("shipment.departureDate")}
                   value={
                     shipment.vesselDepartureDate
                       ? new Date(
@@ -279,7 +282,7 @@ export function ShipmentModal({
                   }
                 />
                 <Field
-                  label="Date d'arrivée"
+                  label={t("shipment.arrivalDate")}
                   value={
                     shipment.vesselArrivalDate
                       ? new Date(shipment.vesselArrivalDate).toLocaleDateString(
@@ -289,12 +292,12 @@ export function ShipmentModal({
                   }
                 />
                 <Field
-                  label="N° facture"
+                  label={t("shipment.invoiceNumber")}
                   value={shipment.invoiceNumber ?? "—"}
                   mono
                 />
                 <Field
-                  label="Sea waybill n°"
+                  label={t("shipment.seaWaybill")}
                   value={shipment.waybill ?? "—"}
                   mono
                 />
@@ -315,8 +318,7 @@ export function ShipmentModal({
                 />
               ) : (
                 <p className="text-sm text-slate-400 italic bg-slate-50 border border-slate-200 rounded-lg px-4 py-3">
-                  Ce shipment est en attente de confirmation par un
-                  administrateur.
+                  {t("shipment.pendingConfirmationMsg")}
                 </p>
               )}
             </>
@@ -351,6 +353,7 @@ function Field({
 }
 
 function DeliveredMaterialsTable({ shipment }: { shipment: ShipmentDetail }) {
+  const { t } = useTranslation();
   // Regroupe les lignes par code matériel — la donnée brute reste 1 ligne par
   // numéro de série (utile en base), mais l'affichage montre la quantité totale.
   const grouped = React.useMemo(() => {
@@ -381,23 +384,26 @@ function DeliveredMaterialsTable({ shipment }: { shipment: ShipmentDetail }) {
   return (
     <div>
       <h4 className="text-sm font-semibold text-[#0F172A] mb-3 flex items-center gap-2 text-black">
-        Matériel réceptionné
+        {t("shipment.receivedMaterials")}
         <span className="text-xs font-normal text-slate-400">
-          confirmé par {shipment.approvedBy} le{" "}
-          {shipment.approvalDate &&
-            new Date(shipment.approvalDate).toLocaleDateString("fr-FR")}
+          {t("shipment.confirmedByOn", {
+            name: shipment.approvedBy,
+            date: shipment.approvalDate
+              ? new Date(shipment.approvalDate).toLocaleDateString("fr-FR")
+              : "",
+          })}
         </span>
       </h4>
       <div className="overflow-x-auto">
         <table className="w-full text-sm min-w-[420px]">
           <thead>
             <tr className="text-xs text-slate-400 uppercase tracking-wide border-b border-slate-100">
-              <th className="text-left font-medium py-2">Code</th>
-              <th className="text-left font-medium py-2">Description</th>
-              <th className="text-right font-medium py-2 px-2 whitespace-nowrap">Qté</th>
-<th className="text-right font-medium py-2 px-2 whitespace-nowrap">Attendu</th>
-<th className="text-right font-medium py-2 px-2 whitespace-nowrap">Écart</th>
-<th className="text-right font-medium py-2 px-2 whitespace-nowrap">Défectueux</th>
+              <th className="text-left font-medium py-2">{t("common.code")}</th>
+              <th className="text-left font-medium py-2">{t("common.description")}</th>
+              <th className="text-right font-medium py-2 px-2 whitespace-nowrap">{t("shipment.qty")}</th>
+<th className="text-right font-medium py-2 px-2 whitespace-nowrap">{t("shipment.expected")}</th>
+<th className="text-right font-medium py-2 px-2 whitespace-nowrap">{t("shipment.variance")}</th>
+<th className="text-right font-medium py-2 px-2 whitespace-nowrap">{t("shipment.defective")}</th>
             </tr>
           </thead>
           <tbody className="text-[#0F172A]">
@@ -408,7 +414,7 @@ function DeliveredMaterialsTable({ shipment }: { shipment: ShipmentDetail }) {
                   {m.count > 1 && (
                     <span className="text-slate-400 font-sans">
                       {" "}
-                      · {m.count} unités
+                      {t("shipment.unitsCount", { count: m.count })}
                     </span>
                   )}
                 </td>
@@ -489,6 +495,7 @@ function ConfirmDeliveryForm({
   shipment: ShipmentDetail;
   onConfirmed: () => void;
 }) {
+  const { t } = useTranslation();
   const { userName } = useAuth();
   const supervisorName = userName ?? "";
   const [lines, setLines] = useState<AssetLine[]>(() => {
@@ -522,11 +529,11 @@ function ConfirmDeliveryForm({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!supervisorName.trim()) {
-      setError("Le nom du superviseur est requis.");
+      setError(t("shipment.confirmForm.supervisorRequired"));
       return;
     }
     if (lines.length === 0 || lines.some((l) => !l.partNumber.trim())) {
-      setError("Chaque ligne doit avoir un code matériel.");
+      setError(t("shipment.confirmForm.lineCodeRequired"));
       return;
     }
     setSubmitting(true);
@@ -555,11 +562,11 @@ function ConfirmDeliveryForm({
       });
       if (!res.ok) {
         const text = await res.text();
-        throw new Error(text || "Échec de la confirmation.");
+        throw new Error(text || t("shipment.confirmForm.confirmFailed"));
       }
       onConfirmed();
     } catch (err: any) {
-      setError(err.message ?? "Échec de la confirmation.");
+      setError(err.message ?? t("shipment.confirmForm.confirmFailed"));
     } finally {
       setSubmitting(false);
     }
@@ -568,8 +575,7 @@ function ConfirmDeliveryForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-4 text-black">
       <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-lg px-3 py-2 mb-4">
-        Ce shipment est en attente — confirmez ce qui a été réellement reçu pour
-        l'injecter en stock.
+        {t("shipment.confirmForm.pendingBanner")}
       </div>
 
       {error && (
@@ -580,7 +586,7 @@ function ConfirmDeliveryForm({
 
       <div className="mb-4 text-black">
         <label className="block text-xs font-semibold text-slate-500 mb-1.5">
-          Confirmé par
+          {t("shipment.confirmForm.confirmedBy")}
         </label>
         <div className="w-full border border-slate-200 bg-slate-50 rounded-lg px-3 py-2 text-sm text-slate-700 font-semibold">
           {supervisorName}
@@ -588,7 +594,7 @@ function ConfirmDeliveryForm({
       </div>
 
       <h4 className="text-sm font-semibold text-[#0F172A] mb-2 text-black">
-        Matériel réceptionné
+        {t("shipment.confirmForm.materialsTitle")}
       </h4>
       <div className="space-y-3 mb-3">
         {lines.map((line, idx) => (
@@ -607,7 +613,7 @@ function ConfirmDeliveryForm({
             )}
             <div className="grid grid-cols-2 gap-2 mb-2">
               <input
-                placeholder="Code matériel (Part Number)"
+                placeholder={t("shipment.confirmForm.partNumberPlaceholder")}
                 value={line.partNumber}
                 onChange={(e) =>
                   updateLine(idx, { partNumber: e.target.value })
@@ -615,7 +621,7 @@ function ConfirmDeliveryForm({
                 className="border border-slate-200 rounded-md px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-[#124191]"
               />
               <input
-                placeholder="Description"
+                placeholder={t("shipment.confirmForm.descriptionPlaceholder")}
                 value={line.productName}
                 onChange={(e) =>
                   updateLine(idx, { productName: e.target.value })
@@ -627,7 +633,7 @@ function ConfirmDeliveryForm({
             <div className="grid grid-cols-3 gap-2 mb-2 text-black">
               <input
                 type="number"
-                placeholder="Qté attendue"
+                placeholder={t("shipment.confirmForm.expectedQtyPlaceholder")}
                 value={line.expectedQty || ""}
                 onChange={(e) =>
                   updateLine(idx, {
@@ -638,7 +644,7 @@ function ConfirmDeliveryForm({
               />
               <input
                 type="number"
-                placeholder="Qté reçue"
+                placeholder={t("shipment.confirmForm.receivedQtyPlaceholder")}
                 value={line.receivedQty || ""}
                 onChange={(e) =>
                   updateLine(idx, {
@@ -648,7 +654,7 @@ function ConfirmDeliveryForm({
                 className="border border-slate-200 rounded-md px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-[#124191]"
               />
               <input
-                placeholder="N° série scanné (optionnel)"
+                placeholder={t("shipment.confirmForm.scannedSerialPlaceholder")}
                 value={line.scannedSerial}
                 onChange={(e) =>
                   updateLine(idx, { scannedSerial: e.target.value })
@@ -666,7 +672,7 @@ function ConfirmDeliveryForm({
                     updateLine(idx, { isManuallyCounted: e.target.checked })
                   }
                 />
-                Compté manuellement
+                {t("shipment.confirmForm.manuallyCounted")}
               </label>
               <label className="flex items-center gap-1.5 text-xs text-slate-500">
                 <input
@@ -676,7 +682,7 @@ function ConfirmDeliveryForm({
                     updateLine(idx, { isNewProduct: e.target.checked })
                   }
                 />
-                Nouvelle référence (pas encore au catalogue)
+                {t("shipment.confirmForm.newProduct")}
               </label>
             </div>
 
@@ -684,7 +690,7 @@ function ConfirmDeliveryForm({
               <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
                 <div>
                   <label className="block text-[10px] text-slate-400 mb-1">
-                    Domaine
+                    {t("shipment.confirmForm.domain")}
                   </label>
                   <select
                     value={line.domain}
@@ -702,14 +708,14 @@ function ConfirmDeliveryForm({
                 </div>
                 <div>
                   <label className="block text-[10px] text-slate-400 mb-1">
-                    Groupe matériel
+                    {t("shipment.confirmForm.materialGroup")}
                   </label>
                   <input
                     value={line.materialGroup}
                     onChange={(e) =>
                       updateLine(idx, { materialGroup: e.target.value })
                     }
-                    placeholder="ex : BTS Hardware"
+                    placeholder={t("shipment.confirmForm.materialGroupPlaceholder")}
                     className="w-full border border-slate-200 rounded-md px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#124191]"
                   />
                 </div>
@@ -721,8 +727,7 @@ function ConfirmDeliveryForm({
                       updateLine(idx, { isSerialized: e.target.checked })
                     }
                   />
-                  Matériel sérialisé (1 unité = 1 numéro de série ; décocher
-                  pour un lot/consommable)
+                  {t("shipment.confirmForm.serialized")}
                 </label>
               </div>
             )}
@@ -735,18 +740,18 @@ function ConfirmDeliveryForm({
         onClick={addLine}
         className="text-xs font-semibold text-[#124191] hover:underline mb-5"
       >
-        + Ajouter une ligne de matériel
+        {t("shipment.confirmForm.addLine")}
       </button>
 
       <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
         <LoadingButton
           type="submit"
           loading={submitting}
-          loadingText="Connexion en cours…"
+          loadingText={t("shipment.confirmForm.processing")}
           disabled={submitting}
           className="px-5 py-2.5 text-sm font-semibold text-white bg-[#124191] rounded-lg hover:bg-[#0d3373] transition-colors disabled:opacity-60"
         >
-          {submitting ? "Confirmation…" : "Confirmer l’arrivée"}
+          {submitting ? t("shipment.confirmForm.confirming") : t("shipment.confirmForm.confirmArrival")}
         </LoadingButton>
       </div>
     </form>
@@ -760,6 +765,7 @@ function CancelShipmentButton({
   shipment: ShipmentDetail;
   onCancelled: () => void;
 }) {
+  const { t } = useTranslation();
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -774,7 +780,7 @@ function CancelShipmentButton({
       if (!res.ok) throw new Error(await res.text());
       onCancelled();
     } catch (err: any) {
-      setError(err.message || "Échec de l'annulation.");
+      setError(err.message || t("shipment.cancelButton.cancelFailed"));
       setBusy(false);
     }
   }
@@ -785,7 +791,7 @@ function CancelShipmentButton({
         onClick={() => setConfirming(true)}
         className="text-xs font-semibold text-red-600 hover:underline mb-4"
       >
-        Annuler ce shipment (livraison non arrivée / problème transport)
+        {t("shipment.cancelButton.cancelShipment")}
       </button>
     );
   }
@@ -793,9 +799,7 @@ function CancelShipmentButton({
   return (
     <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 mb-4">
       <p className="text-sm text-red-700 mb-2">
-        Confirmer l'annulation du shipment{" "}
-        <strong>{shipment.deliveryNumber}</strong> ? Cette action est
-        définitive.
+        {t("shipment.cancelButton.confirmCancelText", { number: shipment.deliveryNumber })}
       </p>
       {error && <p className="text-xs text-red-600 mb-2">{error}</p>}
       <div className="flex gap-2">
@@ -804,14 +808,14 @@ function CancelShipmentButton({
           disabled={busy}
           className="px-3 py-1.5 text-xs font-semibold text-white bg-red-600 rounded-md hover:bg-red-700 disabled:opacity-60"
         >
-          {busy ? "Annulation…" : "Oui, annuler"}
+          {busy ? t("shipment.cancelButton.cancelling") : t("shipment.cancelButton.yesCancel")}
         </button>
         <button
           onClick={() => setConfirming(false)}
           disabled={busy}
           className="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-md"
         >
-          Retour
+          {t("common.back")}
         </button>
       </div>
     </div>

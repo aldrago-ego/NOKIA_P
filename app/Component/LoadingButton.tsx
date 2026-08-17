@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 
 export default function LoadingButton({
   loading,
@@ -11,6 +12,7 @@ export default function LoadingButton({
   children: React.ReactNode;
   loadingText?: string;
 } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
+  const { t } = useTranslation();
   return (
     <button {...props} disabled={loading || props.disabled} className={className}>
       {loading ? (
@@ -19,7 +21,7 @@ export default function LoadingButton({
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
             <path className="opacity-90" d="M12 2a10 10 0 0110 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
           </svg>
-          {loadingText ?? 'Chargement…'}
+          {loadingText ?? t('common.loading')}
         </span>
       ) : (
         children

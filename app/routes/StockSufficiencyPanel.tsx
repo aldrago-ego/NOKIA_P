@@ -1,4 +1,5 @@
-import React from "react";
+import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { apiFetch } from "../apiFetch";
 import { API_BASE } from "../config";
 import { useFetchState } from "../useFetchState";
@@ -19,6 +20,8 @@ export default function StockSufficiencyPanel({
 }: {
   projectId: number;
 }) {
+  const { t } = useTranslation();
+  const [collapsed, setCollapsed] = useState(false);
   const {
     data: rows,
     loading,
@@ -51,37 +54,53 @@ export default function StockSufficiencyPanel({
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 overflow-hidden mb-6">
-      <div className="px-5 py-3 border-b border-slate-100 bg-slate-50">
+      <button
+        onClick={() => setCollapsed((c) => !c)}
+        className="w-full flex items-center justify-between px-5 py-3 border-b border-slate-100 bg-slate-50 text-left hover:bg-slate-100 transition-colors"
+      >
         <h3 className="text-sm font-bold text-[#0F172A]">
-          Suffisance du stock — matériel utilisé sur ce projet
+          {t('stockSufficiency.panelTitle')}
         </h3>
-      </div>
+        <svg
+          className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${collapsed ? "" : "rotate-180"}`}
+          viewBox="0 0 24 24"
+          fill="none"
+        >
+          <path
+            d="M6 9l6 6 6-6"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </button>
 
-      {rows.length === 0 ? (
+      {collapsed ? null : rows.length === 0 ? (
         <p className="text-xs text-slate-400 text-center py-10">
-          Aucun matériel exporté sur ce projet pour le moment.
+          {t('stockSufficiency.noData')}
         </p>
       ) : (
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto animate-[slideDown_.2s_ease]">
           <table className="w-full text-sm min-w-[700px]">
             <thead>
               <tr className="text-xs text-white bg-[#124191]">
-                <th className="text-left font-semibold px-4 py-2">Code</th>
+                <th className="text-left font-semibold px-4 py-2">{t('common.code')}</th>
                 <th className="text-left font-semibold px-4 py-2">
-                  Description
+                  {t('common.description')}
                 </th>
                 <th className="text-right font-semibold px-4 py-2">
-                  Exporté
+                  {t('stockSufficiency.exported')}
                 </th>
                 <th className="text-right font-semibold px-4 py-2">
-                  En attente
+                  {t('stockSufficiency.pending')}
                 </th>
-                <th className="text-right font-semibold px-4 py-2">Stock</th>
+                <th className="text-right font-semibold px-4 py-2">{t('stockSufficiency.stock')}</th>
                 <th className="text-right font-semibold px-4 py-2">
-                  Disponible
+                  {t('stockSufficiency.available')}
                 </th>
                 <th className="text-center font-semibold px-4 py-2">
-                  Statut
+                  {t('common.status')}
                 </th>
               </tr>
             </thead>
