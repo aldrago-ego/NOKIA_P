@@ -90,7 +90,7 @@ const NAV_ITEMS = [
 
 export default function AppLayout() {
   const { t } = useTranslation();
-  const { role, userName, isAdmin, logout } = useAuth();
+  const { role, userName, isAdmin, isSuperAdmin, logout } = useAuth();
   const navigate = useNavigate();
   const [checked, setChecked] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -163,6 +163,26 @@ export default function AppLayout() {
                   )}
                 </NavLink>
               ))}
+
+              {/* Réservé au SuperAdmin — n'apparaît même pas pour un Admin classique. */}
+              {isSuperAdmin && (
+                <NavLink
+                  to="/super-admin"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={({ isActive }) =>
+                    `relative w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold transition-all duration-150 mt-2 border ${
+                      isActive
+                        ? 'bg-white text-[#124191] border-white'
+                        : 'bg-white/95 text-[#124191] border-white/60 hover:bg-white'
+                    }`
+                  }
+                >
+                  <svg viewBox="0 0 24 24" fill="none" className="w-[18px] h-[18px]">
+                    <path d="M12 2l8 4v6c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6l8-4z" stroke="currentColor" strokeWidth="1.8" />
+                  </svg>
+                  {t('nav.superAdmin')}
+                </NavLink>
+              )}
             </nav>
           </div>
 

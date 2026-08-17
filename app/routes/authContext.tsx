@@ -4,13 +4,14 @@ import { apiFetch } from '../apiFetch';
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:5000/api';
 const STORAGE_KEY = 'nexa_auth';
 
-export type Role = 'Admin' | 'Supervisor' | 'Viewer';
+export type Role = 'SuperAdmin' | 'Admin' | 'Supervisor' | 'Viewer';
 
 interface AuthContextValue {
   role: Role | null;
   userName: string | null;
-  isAdmin: boolean;        // Admin STRICT — réservé aux actions les plus sensibles
-  isElevated: boolean;     // Admin OU Supervisor — actions courantes de gestion
+  isAdmin: boolean;        // Admin OU SuperAdmin — le SuperAdmin hérite de tous les droits Admin
+  isElevated: boolean;     // Admin, SuperAdmin OU Supervisor — actions courantes de gestion
+  isSuperAdmin: boolean;   // SuperAdmin STRICT — seul lui accède à la gestion des administrateurs
   login: (username: string, password: string) => Promise<void>;
   logout: () => void;
 }
@@ -69,8 +70,9 @@ function logout() {
 <AuthContext.Provider value={{
   role,
   userName,
-  isAdmin: role === 'Admin',
-  isElevated: role === 'Admin' || role === 'Supervisor',
+  isAdmin: role === 'Admin' || role === 'SuperAdmin',
+  isElevated: role === 'Admin' || role === 'SuperAdmin' || role === 'Supervisor',
+  isSuperAdmin: role === 'SuperAdmin',
   login,
   logout
 }}>      {children}

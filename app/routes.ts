@@ -11,5 +11,6 @@ export default [
     route("traceability", "routes/TraceAbility.tsx"),
     route("clients", "routes/client.tsx"),
     route("history", "routes/history.tsx"),
+    route("super-admin", "routes/SuperAdminPanel.tsx"),
   ]),
 ] satisfies RouteConfig;

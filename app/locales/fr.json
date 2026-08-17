@@ -52,6 +52,7 @@
     "traceability": "Traçabilité",
     "clients": "Clients",
     "history": "Historique",
+    "superAdmin": "Administrateurs",
     "logout": "Déconnexion"
   },
   "login": {
@@ -547,5 +548,33 @@
       "importing": "Import…",
       "submit": "Importer"
     }
+  },
+  "superAdmin": {
+    "badge": "Console SuperAdmin",
+    "title": "Gestion des utilisateurs",
+    "subtitle": "Créez, modifiez et révoquez tous les comptes (SuperAdmin, Admin, Superviseur, Visiteur). Cette page n'est visible que par le SuperAdmin.",
+    "usersList": "Utilisateurs",
+    "addUser": "+ Ajouter un utilisateur",
+    "username": "Identifiant",
+    "usernamePlaceholder": "ex : jdupont",
+    "displayName": "Nom affiché",
+    "displayNamePlaceholder": "ex : Jean Dupont",
+    "password": "Mot de passe",
+    "passwordPlaceholder": "8 caractères minimum",
+    "role": "Rôle",
+    "createUser": "Créer l'utilisateur",
+    "creating": "Création…",
+    "usernamePasswordRequired": "Identifiant et mot de passe requis.",
+    "passwordTooShort": "Le mot de passe doit contenir au moins 8 caractères.",
+    "createFailed": "Échec de la création.",
+    "updateFailed": "Échec de la mise à jour.",
+    "deleteFailed": "Échec de la suppression.",
+    "noUsers": "Aucun utilisateur pour le moment.",
+    "edit": "Modifier",
+    "deleteUser": "Supprimer",
+    "you": "vous",
+    "newPasswordOptional": "Nouveau mot de passe (optionnel)",
+    "cannotChangeOwnRole": "Vous ne pouvez pas modifier votre propre rôle.",
+    "confirmDelete": "Supprimer le compte de {{name}} ?"
   }
 }

@@ -52,6 +52,7 @@
     "traceability": "Traceability",
     "clients": "Clients",
     "history": "History",
+    "superAdmin": "Administrators",
     "logout": "Log out"
   },
   "login": {
@@ -547,5 +548,33 @@
       "importing": "Importing…",
       "submit": "Import"
     }
+  },
+  "superAdmin": {
+    "badge": "SuperAdmin console",
+    "title": "User management",
+    "subtitle": "Create, edit and revoke every account (SuperAdmin, Admin, Supervisor, Viewer). This page is only visible to the SuperAdmin.",
+    "usersList": "Users",
+    "addUser": "+ Add a user",
+    "username": "Username",
+    "usernamePlaceholder": "e.g. jdoe",
+    "displayName": "Display name",
+    "displayNamePlaceholder": "e.g. John Doe",
+    "password": "Password",
+    "passwordPlaceholder": "8 characters minimum",
+    "role": "Role",
+    "createUser": "Create user",
+    "creating": "Creating…",
+    "usernamePasswordRequired": "Username and password required.",
+    "passwordTooShort": "Password must be at least 8 characters.",
+    "createFailed": "Creation failed.",
+    "updateFailed": "Update failed.",
+    "deleteFailed": "Deletion failed.",
+    "noUsers": "No users yet.",
+    "edit": "Edit",
+    "deleteUser": "Delete",
+    "you": "you",
+    "newPasswordOptional": "New password (optional)",
+    "cannotChangeOwnRole": "You cannot change your own role.",
+    "confirmDelete": "Delete {{name}}'s account?"
   }
 }
