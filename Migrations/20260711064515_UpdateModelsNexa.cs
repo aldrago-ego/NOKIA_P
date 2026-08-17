@@ -100,23 +100,28 @@ namespace backend.Migrations
                 type: "text",
                 nullable: true);
 
-            // migrationBuilder.CreateTable(
-            //     name: "Projects",
-            //     columns: table => new
-            //     {
-            //         Id = table.Column<int>(type: "integer", nullable: false)
-            //             .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-            //         Name = table.Column<string>(type: "text", nullable: false),
-            //         Code = table.Column<string>(type: "text", nullable: false),
-            //         StartDate = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-            //         EndDate = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
-            //         IsCurrent = table.Column<bool>(type: "boolean", nullable: false),
-            //         HasFullTraceability = table.Column<bool>(type: "boolean", nullable: false)
-            //     },
-            //     constraints: table =>
-            //     {
-            //         table.PrimaryKey("PK_Projects", x => x.Id);
-            //     });
+            // Recréée ici — cette table n'est créée par aucune autre migration. Sur l'ancienne
+            // base Supabase, "Projects" avait été créée manuellement hors EF (d'où le commentaire
+            // d'origine, pour éviter une erreur "table déjà existante" au moment de son ajout).
+            // Sur une base neuve, cette omission fait échouer toute la chaîne de migrations dès
+            // que "ActivityLogs" tente sa FK vers "Projects" — donc restaurée pour de vrai ici.
+            migrationBuilder.CreateTable(
+                name: "Projects",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    Name = table.Column<string>(type: "text", nullable: false),
+                    Code = table.Column<string>(type: "text", nullable: false),
+                    StartDate = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    EndDate = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    IsCurrent = table.Column<bool>(type: "boolean", nullable: false),
+                    HasFullTraceability = table.Column<bool>(type: "boolean", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Projects", x => x.Id);
+                });
 
             migrationBuilder.CreateTable(
                 name: "ActivityLogs",
