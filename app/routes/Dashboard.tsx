@@ -101,6 +101,7 @@ export default function Dashboard() {
   const { isElevated } = useAuth();
   const [projectDropdownOpen, setProjectDropdownOpen] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showLegacyModal, setShowLegacyModal] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [stockLines, setStockLines] = useState<any[] | null>(null);
   const [stockSearch, setStockSearch] = useState("");
@@ -297,6 +298,7 @@ export default function Dashboard() {
   function handleProjectCreated(project: Project) {
     addProject(project);
     setShowCreateModal(false);
+    setShowLegacyModal(false);
   }
 
   return (
@@ -369,10 +371,10 @@ export default function Dashboard() {
                     </span>
                     {!p.hasFullTraceability && (
                       <span
-                        title="Données historiques limitées"
+                        title={t("dashboard.legacyProjectBadgeHint")}
                         className="text-[10px] text-slate-400 border border-slate-200 rounded px-1"
                       >
-                        archivé
+                        {t("dashboard.legacyProjectBadge")}
                       </span>
                     )}
                   </button>
@@ -395,6 +397,20 @@ export default function Dashboard() {
               />
             </svg>
             {t("dashboard.newProject")}
+          </button>
+
+          {/* Bouton "Projet ancien" — même flux de création, mais le projet créé n'affectera
+              jamais le stock réel (voir CreateProjectModal legacy={true} + backend). */}
+          <button
+            onClick={() => setShowLegacyModal(true)}
+            title={t("dashboard.legacyProjectHint")}
+            className="flex items-center gap-1.5 justify-center bg-white border border-slate-200 text-slate-600 text-sm font-semibold rounded-lg px-4 py-2.5 hover:border-[#124191] hover:text-[#124191] transition-colors flex-1 md:flex-none whitespace-nowrap"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
+              <path d="M12 7v5l3 3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+              <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.8" />
+            </svg>
+            {t("dashboard.legacyProject")}
           </button>
         </div>
       </div>
@@ -844,6 +860,13 @@ export default function Dashboard() {
           onCreated={handleProjectCreated}
         />
       )}
+      {showLegacyModal && (
+        <CreateProjectModal
+          legacy
+          onClose={() => setShowLegacyModal(false)}
+          onCreated={handleProjectCreated}
+        />
+      )}
     </div>
   );
 }
@@ -852,9 +875,11 @@ export default function Dashboard() {
 // Modale de création de projet
 // =========================================================
 function CreateProjectModal({
+  legacy = false,
   onClose,
   onCreated,
 }: {
+  legacy?: boolean;
   onClose: () => void;
   onCreated: (p: Project) => void;
 }) {
@@ -883,6 +908,7 @@ function CreateProjectModal({
           code,
           startDate,
           endDate: endDate || null,
+          isLegacy: legacy,
         }),
       });
       if (!res.ok) throw new Error("Échec de la création");
@@ -902,7 +928,9 @@ function CreateProjectModal({
     >
       <div className="bg-white rounded-xl w-full max-w-md p-6 shadow-2xl">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-base font-bold text-[#0F172A]">{t("dashboard.newProject")}</h3>
+          <h3 className="text-base font-bold text-[#0F172A]">
+            {legacy ? t("dashboard.legacyProject") : t("dashboard.newProject")}
+          </h3>
           <button
             onClick={onClose}
             className="text-slate-400 hover:text-slate-600"
@@ -912,6 +940,14 @@ function CreateProjectModal({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4 text-black">
+          {legacy && (
+            <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-lg px-3 py-2.5">
+              <svg className="w-4 h-4 flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none">
+                <path d="M12 9v4m0 4h.01M10.3 3.9L2.7 17a2 2 0 001.7 3h15.2a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z" stroke="currentColor" strokeWidth="1.7" />
+              </svg>
+              <span>{t("dashboard.legacyProjectNotice")}</span>
+            </div>
+          )}
           {error && (
             <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
               {error}
@@ -981,7 +1017,11 @@ function CreateProjectModal({
               disabled={submitting}
               className="px-4 py-2 text-sm font-semibold text-white bg-[#124191] rounded-lg hover:bg-[#0d3373] transition-colors disabled:opacity-60"
             >
-              {submitting ? t("dashboard.createProject.creating") : t("dashboard.createProject.create")}
+              {submitting
+                ? t("dashboard.createProject.creating")
+                : legacy
+                  ? t("dashboard.legacyProject")
+                  : t("dashboard.createProject.create")}
             </button>
           </div>
         </form>
