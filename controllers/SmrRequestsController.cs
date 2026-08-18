@@ -267,6 +267,13 @@ public async Task<IActionResult> GetSMRRequests([FromQuery] int? projectId)
             if (!isCompletion && request.Status != "Pending")
                 return BadRequest("Cette demande n'est plus en attente.");
 
+            // Projet ancien (HasFullTraceability=false) — l'approbation reste traçable (statut,
+            // DeploymentRecord, ActivityLog) mais ne déduit jamais le stock réel : on ne dispose
+            // pas forcément de toutes les traces Excel historiques, donc aucune vérification de
+            // disponibilité n'est pertinente et tout le demandé est considéré alloué directement.
+            var project = await _context.Projects.FindAsync(request.ProjectId);
+            bool isLegacy = project != null && !project.HasFullTraceability;
+
             if (request.SubcontractorId.HasValue)
             {
                 // Mode "par sous-traitant" — plusieurs sites via SmrRequestSiteItem
@@ -290,7 +297,7 @@ public async Task<IActionResult> GetSMRRequests([FromQuery] int? projectId)
                 if (isCompletion && !siteItems.Any(i => i.AllocatedQuantity < i.RequestedQuantity))
                     return BadRequest("Cette SMR est déjà entièrement approuvée.");
 
-                if (!dto.ForcePartialAllocation)
+                if (!isLegacy && !dto.ForcePartialAllocation)
                 {
                     var subShortages = new List<object>();
                     foreach (var item in siteItems)
@@ -327,14 +334,24 @@ public async Task<IActionResult> GetSMRRequests([FromQuery] int? projectId)
                     var remaining = item.RequestedQuantity - item.AllocatedQuantity;
                     if (remaining <= 0) continue; // déjà entièrement alloué — rien à faire
 
-                    var available = await _context.PhysicalAssets
-                        .Where(a => a.HardwareProductId == item.HardwareProductId
-                                 && a.WarehouseId == request.WarehouseId && a.Status == "STOCK")
-                        .SumAsync(a => a.Quantity - a.DefectiveQuantity);
-                    int toDeduct = Math.Min(remaining, available);
-                    if (toDeduct <= 0) continue;
+                    int toDeduct;
+                    if (isLegacy)
+                    {
+                        // Projet archivé — aucune déduction réelle, le reliquat demandé est
+                        // considéré alloué directement.
+                        toDeduct = remaining;
+                    }
+                    else
+                    {
+                        var available = await _context.PhysicalAssets
+                            .Where(a => a.HardwareProductId == item.HardwareProductId
+                                     && a.WarehouseId == request.WarehouseId && a.Status == "STOCK")
+                            .SumAsync(a => a.Quantity - a.DefectiveQuantity);
+                        toDeduct = Math.Min(remaining, available);
+                        if (toDeduct <= 0) continue;
+                        await DeductStockForSiteItem(item.HardwareProductId, request.WarehouseId, toDeduct);
+                    }
 
-                    await DeductStockForSiteItem(item.HardwareProductId, request.WarehouseId, toDeduct);
                     item.AllocatedQuantity += toDeduct;
                     deductedCount++;
 
@@ -354,9 +371,11 @@ public async Task<IActionResult> GetSMRRequests([FromQuery] int? projectId)
                 {
                     ProjectId = request.ProjectId,
                     Type = "SMR_APPROVED",
-                    Description = isCompletion
-                        ? $"SMR {request.SMRNumber} complétée (sous-traitant) — {deductedCount} référence(s) additionnelle(s) allouée(s)"
-                        : $"SMR {request.SMRNumber} approuvée (sous-traitant) — matériel déduit sur {siteItems.Select(i => i.SiteId).Distinct().Count()} site(s)",
+                    Description = isLegacy
+                        ? $"SMR {request.SMRNumber} approuvée (sous-traitant, projet archivé) — {deductedCount} référence(s) enregistrée(s), stock réel non affecté"
+                        : isCompletion
+                            ? $"SMR {request.SMRNumber} complétée (sous-traitant) — {deductedCount} référence(s) additionnelle(s) allouée(s)"
+                            : $"SMR {request.SMRNumber} approuvée (sous-traitant) — matériel déduit sur {siteItems.Select(i => i.SiteId).Distinct().Count()} site(s)",
                     PerformedBy = dto.ApprovedBy ?? "Admin"
                 });
                 await _context.SaveChangesAsync();
@@ -369,7 +388,7 @@ public async Task<IActionResult> GetSMRRequests([FromQuery] int? projectId)
             if (isCompletion && !request.Items.Any(i => i.AllocatedQuantity < i.RequestedQuantity))
                 return BadRequest("Cette SMR est déjà entièrement approuvée.");
 
-            if (!dto.ForcePartialAllocation)
+            if (!isLegacy && !dto.ForcePartialAllocation)
             {
                 var shortages = await CheckAvailability(request);
                 if (shortages.Any())
@@ -381,16 +400,26 @@ public async Task<IActionResult> GetSMRRequests([FromQuery] int? projectId)
                 var remaining = item.RequestedQuantity - item.AllocatedQuantity;
                 if (remaining <= 0) continue; // déjà entièrement alloué — rien à faire
 
-                var assets = await _context.PhysicalAssets
-                    .Where(a => a.HardwareProductId == item.HardwareProductId
-                             && a.WarehouseId == request.WarehouseId
-                             && a.Status == "STOCK")
-                    .ToListAsync();
-                var available = assets.Sum(a => a.Quantity - a.DefectiveQuantity);
-                int toDeduct = Math.Min(remaining, available);
-                if (toDeduct <= 0) continue;
+                int toDeduct;
+                if (isLegacy)
+                {
+                    // Projet archivé — aucune déduction réelle, le reliquat demandé est
+                    // considéré alloué directement.
+                    toDeduct = remaining;
+                }
+                else
+                {
+                    var assets = await _context.PhysicalAssets
+                        .Where(a => a.HardwareProductId == item.HardwareProductId
+                                 && a.WarehouseId == request.WarehouseId
+                                 && a.Status == "STOCK")
+                        .ToListAsync();
+                    var available = assets.Sum(a => a.Quantity - a.DefectiveQuantity);
+                    toDeduct = Math.Min(remaining, available);
+                    if (toDeduct <= 0) continue;
+                    await DeductStockForItem(item, request.WarehouseId, toDeduct);
+                }
 
-                await DeductStockForItem(item, request.WarehouseId, toDeduct);
                 item.AllocatedQuantity += toDeduct;
 
                 if (request.SiteIds.Count > 0)
@@ -412,9 +441,11 @@ public async Task<IActionResult> GetSMRRequests([FromQuery] int? projectId)
             {
                 ProjectId = request.ProjectId,
                 Type = "SMR_APPROVED",
-                Description = isCompletion
-                    ? $"SMR {request.SMRNumber} complétée — reliquat alloué depuis le stock"
-                    : $"SMR {request.SMRNumber} approuvée — matériel déduit du stock",
+                Description = isLegacy
+                    ? $"SMR {request.SMRNumber} approuvée (projet archivé) — stock réel non affecté"
+                    : isCompletion
+                        ? $"SMR {request.SMRNumber} complétée — reliquat alloué depuis le stock"
+                        : $"SMR {request.SMRNumber} approuvée — matériel déduit du stock",
                 PerformedBy = dto.ApprovedBy ?? "Admin"
             });
             await _context.SaveChangesAsync();

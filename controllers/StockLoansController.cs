@@ -71,25 +71,36 @@ namespace Backend.Controllers
                 }).ToList()
             };
 
+            // Projet ancien — le prêt/emprunt reste enregistré (historique/traçabilité) mais
+            // n'affecte jamais le stock physique réel.
+            var project = await _context.Projects.FindAsync(dto.ProjectId);
+            bool isLegacy = project != null && !project.HasFullTraceability;
+
             if (direction == LoanDirection.Loaned)
             {
-                // Vérifie la disponibilité avant toute écriture
                 foreach (var item in loan.Items)
                 {
                     if (item.HardwareProductId == null)
                         return BadRequest("Une référence à prêter doit exister au catalogue.");
-
-                    var available = await _context.PhysicalAssets
-                        .Where(a => a.HardwareProductId == item.HardwareProductId
-                                 && a.WarehouseId == dto.WarehouseId && a.Status == "STOCK")
-                        .SumAsync(a => a.Quantity - a.DefectiveQuantity);
-
-                    if (available < item.Quantity)
-                        return BadRequest($"Stock insuffisant pour {item.PartNumber} ({available} disponible).");
                 }
 
-                foreach (var item in loan.Items)
-                    await DeductStock(item.HardwareProductId!.Value, dto.WarehouseId, item.Quantity);
+                if (!isLegacy)
+                {
+                    // Vérifie la disponibilité avant toute écriture
+                    foreach (var item in loan.Items)
+                    {
+                        var available = await _context.PhysicalAssets
+                            .Where(a => a.HardwareProductId == item.HardwareProductId
+                                     && a.WarehouseId == dto.WarehouseId && a.Status == "STOCK")
+                            .SumAsync(a => a.Quantity - a.DefectiveQuantity);
+
+                        if (available < item.Quantity)
+                            return BadRequest($"Stock insuffisant pour {item.PartNumber} ({available} disponible).");
+                    }
+
+                    foreach (var item in loan.Items)
+                        await DeductStock(item.HardwareProductId!.Value, dto.WarehouseId, item.Quantity);
+                }
             }
             // Borrowed : simple registre, aucun impact sur le stock
 
@@ -100,9 +111,13 @@ namespace Backend.Controllers
             {
                 ProjectId = dto.ProjectId,
                 Type = direction == LoanDirection.Loaned ? "STOCK_LOANED" : "STOCK_BORROWED",
-                Description = direction == LoanDirection.Loaned
-                    ? $"Matériel prêté à {dto.PartyName} ({loan.Items.Count} référence(s), hors SMR)"
-                    : $"Matériel emprunté auprès de {dto.PartyName} ({loan.Items.Count} référence(s))",
+                Description = isLegacy
+                    ? (direction == LoanDirection.Loaned
+                        ? $"Matériel prêté à {dto.PartyName} ({loan.Items.Count} référence(s), projet archivé, stock réel non affecté)"
+                        : $"Matériel emprunté auprès de {dto.PartyName} ({loan.Items.Count} référence(s), projet archivé)")
+                    : (direction == LoanDirection.Loaned
+                        ? $"Matériel prêté à {dto.PartyName} ({loan.Items.Count} référence(s), hors SMR)"
+                        : $"Matériel emprunté auprès de {dto.PartyName} ({loan.Items.Count} référence(s))"),
                 PerformedBy = "Admin"
             });
             await _context.SaveChangesAsync();
@@ -118,7 +133,10 @@ namespace Backend.Controllers
             if (loan == null) return NotFound();
             if (loan.Status != "Active") return BadRequest("Ce mouvement n'est plus actif.");
 
-            if (loan.Direction == LoanDirection.Loaned)
+            var project = await _context.Projects.FindAsync(loan.ProjectId);
+            bool isLegacy = project != null && !project.HasFullTraceability;
+
+            if (loan.Direction == LoanDirection.Loaned && !isLegacy)
             {
                 // Le client rend le matériel : ré-injection en stock (nouveau lot, traçable)
                 foreach (var item in loan.Items)
@@ -137,7 +155,8 @@ namespace Backend.Controllers
                     });
                 }
             }
-            // Borrowed : on rend le matériel à son propriétaire, aucun impact stock (jamais possédé)
+            // Borrowed, ou projet archivé : on rend le matériel à son propriétaire / on clôt le
+            // registre historique, aucun impact sur le stock réel.
 
             loan.Status = "Returned";
             loan.ReturnedDate = DateTime.UtcNow;
@@ -147,7 +166,8 @@ namespace Backend.Controllers
             {
                 ProjectId = loan.ProjectId,
                 Type = "STOCK_LOAN_RETURNED",
-                Description = $"Retour {(loan.Direction == LoanDirection.Loaned ? "du prêt" : "de l'emprunt")} — {loan.PartyName}",
+                Description = $"Retour {(loan.Direction == LoanDirection.Loaned ? "du prêt" : "de l'emprunt")} — {loan.PartyName}"
+                    + (isLegacy ? " (projet archivé, stock réel non affecté)" : ""),
                 PerformedBy = dto.PerformedBy ?? "Admin"
             });
             await _context.SaveChangesAsync();

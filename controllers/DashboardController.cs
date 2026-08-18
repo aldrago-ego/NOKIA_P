@@ -31,17 +31,15 @@ public async Task<IActionResult> GetDashboardStats([FromQuery] int projectId)
         .Where(a => a.Status == "STOCK")
         .SumAsync(a => a.Quantity);
 
-    int? smrs = null;
-    int? faultyHwRma = null;
+    // Comptés pour tous les projets, y compris les "projets anciens" — l'ajout d'une SMR/RMA
+    // à un projet archivé est justement le but de la fonctionnalité (garder une trace des
+    // actions menées sans toucher au stock réel), donc ces cartes doivent refléter cette
+    // activité au lieu de rester vides.
+    int? smrs = await _context.Set<SMRRequest>().CountAsync(s => s.ProjectId == projectId);
 
-    if (project.HasFullTraceability)
-    {
-        smrs = await _context.Set<SMRRequest>().CountAsync(s => s.ProjectId == projectId);
-
-        faultyHwRma = await _context.PhysicalAssets
-            .Include(a => a.DeliveryNote)
-            .CountAsync(a => a.DefectiveQuantity > 0 && a.DeliveryNote != null && a.DeliveryNote.ProjectId == projectId);
-    }
+    int? faultyHwRma = await _context.PhysicalAssets
+        .Include(a => a.DeliveryNote)
+        .CountAsync(a => a.DefectiveQuantity > 0 && a.DeliveryNote != null && a.DeliveryNote.ProjectId == projectId);
 
     return Ok(new
     {

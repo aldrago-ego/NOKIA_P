@@ -134,18 +134,26 @@ namespace Backend.Controllers
             if (rma == null) return NotFound();
             if (rma.Status != "Pending") return BadRequest("Cette RMA n'est plus en attente.");
 
-            foreach (var item in rma.Items)
-            {
-                var asset = item.PhysicalAsset!;
-                if (item.Quantity > asset.DefectiveQuantity || item.Quantity > asset.Quantity)
-                    return BadRequest($"Stock incohérent pour {asset.SerialNumber} — annulez et recréez la RMA.");
+            // Projet ancien — le statut RMA reste suivi normalement (traçabilité), mais le
+            // stock physique réel n'est jamais touché.
+            var project = await _context.Projects.FindAsync(rma.ProjectId);
+            bool isLegacy = project != null && !project.HasFullTraceability;
 
-                asset.Quantity -= item.Quantity;
-                asset.DefectiveQuantity -= item.Quantity;
-                if (asset.Quantity <= 0)
+            if (!isLegacy)
+            {
+                foreach (var item in rma.Items)
                 {
-                    asset.Status = "RMA_TRANSIT";
-                    asset.WarehouseId = null;
+                    var asset = item.PhysicalAsset!;
+                    if (item.Quantity > asset.DefectiveQuantity || item.Quantity > asset.Quantity)
+                        return BadRequest($"Stock incohérent pour {asset.SerialNumber} — annulez et recréez la RMA.");
+
+                    asset.Quantity -= item.Quantity;
+                    asset.DefectiveQuantity -= item.Quantity;
+                    if (asset.Quantity <= 0)
+                    {
+                        asset.Status = "RMA_TRANSIT";
+                        asset.WarehouseId = null;
+                    }
                 }
             }
 
@@ -158,7 +166,9 @@ namespace Backend.Controllers
             {
                 ProjectId = rma.ProjectId,
                 Type = "RMA_SHIPPED",
-                Description = $"RMA {rma.RmaNumber} expédiée vers Nokia — matériel retiré du stock",
+                Description = isLegacy
+                    ? $"RMA {rma.RmaNumber} expédiée vers Nokia (projet archivé) — stock réel non affecté"
+                    : $"RMA {rma.RmaNumber} expédiée vers Nokia — matériel retiré du stock",
                 PerformedBy = dto.PerformedBy ?? "Admin"
             });
             await _context.SaveChangesAsync();

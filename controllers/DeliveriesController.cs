@@ -42,6 +42,13 @@ if (delivery.IsApproved)
             if (warehouse == null)
                 return BadRequest("Aucun entrepôt configuré en base.");
 
+            // Projet ancien — le matériel reçu reste consultable (détail du shipment,
+            // traçabilité) mais n'est jamais injecté dans le stock réel : statut dédié
+            // "STOCK_LEGACY" (exclu de tous les agrégats qui filtrent Status == "STOCK")
+            // et aucun entrepôt réel assigné, comme pour tout asset sorti du stock vivant.
+            var project = await _context.Projects.FindAsync(delivery.ProjectId);
+            bool isLegacy = project != null && !project.HasFullTraceability;
+
             delivery.IsApproved = true;
             delivery.ApprovedBy = dto.SupervisorName;
             delivery.ApprovalDate = DateTime.UtcNow;
@@ -96,12 +103,12 @@ if (delivery.IsApproved)
                 HardwareProductId = product.Id,
                 HardwareProduct = product,
                 Quantity = 1,
-                Status = "STOCK",
+                Status = isLegacy ? "STOCK_LEGACY" : "STOCK",
                 IsManuallyVerified = item.IsManuallyCounted,
                 VerificationStatus = verifStatus,
                 DeliveryNoteId = delivery.Id,
-                WarehouseId = warehouse.Id,
-                Warehouse = warehouse,
+                WarehouseId = isLegacy ? null : warehouse.Id,
+                Warehouse = isLegacy ? null : warehouse,
                 UploadedAt = DateTime.UtcNow
             });
         }
@@ -114,12 +121,12 @@ if (delivery.IsApproved)
             HardwareProductId = product.Id,
             HardwareProduct = product,
             Quantity = qty,
-            Status = "STOCK",
+            Status = isLegacy ? "STOCK_LEGACY" : "STOCK",
             IsManuallyVerified = item.IsManuallyCounted,
             VerificationStatus = verifStatus,
             DeliveryNoteId = delivery.Id,
-            WarehouseId = warehouse.Id,
-            Warehouse = warehouse,
+            WarehouseId = isLegacy ? null : warehouse.Id,
+            Warehouse = isLegacy ? null : warehouse,
             UploadedAt = DateTime.UtcNow
         });
     }
@@ -130,12 +137,18 @@ if (delivery.IsApproved)
             {
                 ProjectId = delivery.ProjectId,
                 Type = "DELIVERY_CONFIRMED",
-                Description = $"Shipment {delivery.DeliveryNumber} confirmé livré et injecté en stock",
+                Description = isLegacy
+                    ? $"Shipment {delivery.DeliveryNumber} confirmé (projet archivé) — matériel enregistré sans affecter le stock réel"
+                    : $"Shipment {delivery.DeliveryNumber} confirmé livré et injecté en stock",
                 PerformedBy = dto.SupervisorName
             });
             await _context.SaveChangesAsync();
 
-            return Ok(new { message = $"Shipment {dto.DeliveryNumber} validé et injecté en stock par {dto.SupervisorName}." });
+            return Ok(new {
+                message = isLegacy
+                    ? $"Shipment {dto.DeliveryNumber} validé par {dto.SupervisorName} — projet archivé, stock réel non affecté."
+                    : $"Shipment {dto.DeliveryNumber} validé et injecté en stock par {dto.SupervisorName}."
+            });
         }
 
      private static (MaterialDomain domain, bool isSerialized) GuessClassification(string partNumber, string description)
